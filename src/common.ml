@@ -230,6 +230,8 @@ let token_to_string = function
   | `Char i ->
     char i
 
+  | `String s -> s
+
   | `PI v ->
     signal_to_string (`PI v)
 

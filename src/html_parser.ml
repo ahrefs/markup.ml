@@ -175,6 +175,8 @@ struct
     let rec scan () =
       next_token begin function
         | _, `Doctype _ -> k `Document
+        | _, `String s when not @@ is_whitespace_only s -> k (`Fragment "body")
+        | _, `String _ -> scan ()
         | _, `Char c when not @@ is_whitespace c -> k (`Fragment "body")
         | _, `Char _ -> scan ()
         | _, `EOF -> k (`Fragment "body")
@@ -1047,6 +1049,7 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
   let form_element_pointer = ref None in
 
   let add_character = Text.add text in
+  let add_string = Text.add_string text in
 
   set_foreign (fun () ->
     Stack.current_element_is_foreign context open_elements);
@@ -1386,6 +1389,7 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
             `Start {name = "svg"} -> false
         | Some {is_html_integration_point = true}, `Start _ -> false
         | Some {is_html_integration_point = true}, `Char _ -> false
+        | Some {is_html_integration_point = true}, `String _ -> false
         | _, `EOF -> false
         | _ -> true
       in
@@ -1398,6 +1402,9 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
   and initial_mode () =
     dispatch tokens begin function
       | _, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) ->
+        initial_mode ()
+
+      | _, `String s when is_whitespace_only s ->
         initial_mode ()
 
       | l, `Comment s ->
@@ -1424,6 +1431,9 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
       | _, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) ->
         before_html_mode ()
 
+      | _, `String s when is_whitespace_only s ->
+        before_html_mode ()
+
       | l, `Start ({name = "html"} as t) ->
         push_and_emit l t before_head_mode
 
@@ -1440,6 +1450,9 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
   and before_head_mode () =
     dispatch tokens begin function
       | _, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) ->
+        before_head_mode ()
+
+      | _, `String s when is_whitespace_only s ->
         before_head_mode ()
 
       | l, `Comment s ->
@@ -1474,6 +1487,10 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
   and in_head_mode_rules mode = function
     | l, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020 as c) ->
       add_character l c;
+      mode ()
+
+    | l, `String s when is_whitespace_only s ->
+      add_string l s;
       mode ()
 
     | l, `Comment s ->
@@ -1547,6 +1564,9 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
       | l, `End {name = "noscript"} ->
         pop l in_head_mode
 
+      | _, `String s as v when is_whitespace_only s ->
+        in_head_mode_rules in_head_noscript_mode v
+
       | _, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020)
       | _, `Comment _
       | _, `Start {name =
@@ -1571,6 +1591,10 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
     dispatch tokens begin function
       | l, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020 as c) ->
         add_character l c;
+        after_head_mode ()
+
+      | l, `String s when is_whitespace_only s ->
+        add_string l s;
         after_head_mode ()
 
       | l, `Comment s ->
@@ -1628,6 +1652,12 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
   and in_body_mode_rules context_name mode = function
     | l, `Char 0 ->
       report l (`Bad_token ("U+0000", "body", "null")) !throw mode
+
+    | l, `String s ->
+      reconstruct_active_formatting_elements (fun () ->
+      add_string l s;
+      if not @@ is_whitespace_only s then frameset_ok := false;
+      mode ())
 
     | l, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020 as c) ->
       reconstruct_active_formatting_elements (fun () ->
@@ -1732,8 +1762,11 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
       frameset_ok := false;
       close_current_p_element l (fun () ->
       push_and_emit l t (fun () ->
+      (* https://html.spec.whatwg.org/multipage/grouping-content.html#the-pre-element *)
+      (* In the HTML syntax, a leading newline character immediately following the pre element start tag is stripped. *)
       next_expected tokens !throw (function
         | _, `Char 0x000A -> mode ()
+        | loc, `String s when String.starts_with ~prefix:"\n" s -> push tokens (loc, `String (String.sub s 1 (String.length s - 1))); mode ()
         | v ->
           push tokens v;
           mode ())))
@@ -1947,6 +1980,7 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
       set_tokenizer_state `RCDATA;
       next_expected tokens !throw (function
         | _, `Char 0x000A -> text_mode mode
+        | loc, `String s when String.starts_with ~prefix:"\n" s -> push tokens (loc, `String (String.sub s 1 (String.length s - 1))); text_mode mode
         | v ->
           push tokens v;
           text_mode mode))
@@ -2079,6 +2113,10 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
         add_character l c;
         text_mode original_mode
 
+      | l, `String s ->
+        add_string l s;
+        text_mode original_mode
+
       | l, `EOF as v ->
         report l (`Unexpected_eoi "content") !throw (fun () ->
         push tokens v;
@@ -2110,7 +2148,7 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
     dispatch tokens (fun v -> in_table_mode_rules in_table_mode v)
 
   and in_table_mode_rules mode = function
-    | _, `Char _ as v
+    | (_, `Char _| _, `String _) as v
         when Stack.current_element_is open_elements
                ["table"; "tbody"; "tfoot"; "thead"; "tr"] ->
       push tokens v;
@@ -2197,6 +2235,12 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
       | _, `Char _ as v ->
         in_table_text_mode false (v::cs) mode
 
+      | (_, `String s as v) when is_whitespace_only s ->
+        in_table_text_mode only_space (v::cs) mode
+
+      | _, `String _ as v ->
+        in_table_text_mode false (v::cs) mode
+
       | v ->
         push tokens v;
         if not only_space then
@@ -2263,6 +2307,10 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
     dispatch tokens begin function
       | l, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020 as c) ->
         add_character l c;
+        in_column_group_mode ()
+
+      | l, `String s when is_whitespace_only s ->
+        add_string l s;
         in_column_group_mode ()
 
       | l, `Comment s ->
@@ -2459,6 +2507,10 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
       add_character l c;
       mode ()
 
+    | l, `String s ->
+      add_string l s;
+      mode ()
+
     | l, `Comment s ->
       emit l (`Comment s) mode
 
@@ -2562,7 +2614,7 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
 
   (* 8.2.5.4.18. *)
   and in_template_mode_rules mode = function
-    | _, (`Char _ | `Comment _ | `Doctype _) as v ->
+    | _, (`Char _ | `Comment _ | `Doctype _ | `String _) as v ->
       in_body_mode_rules "template" mode v
 
     | _, `Start {name =
@@ -2621,6 +2673,9 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
       | _, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) as v ->
         in_body_mode_rules "html" after_body_mode v
 
+      | (_, `String s) as v when is_whitespace_only s ->
+        in_body_mode_rules "html" after_body_mode v
+
       | l, `Comment s ->
         emit l (`Comment s) after_body_mode
 
@@ -2648,6 +2703,10 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
     dispatch tokens begin function
       | l, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020 as c) ->
         add_character l c;
+        in_frameset_mode ()
+
+      | l, `String s when is_whitespace_only s ->
+        add_string l s;
         in_frameset_mode ()
 
       | l, `Comment s ->
@@ -2699,6 +2758,10 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
         add_character l c;
         after_frameset_mode ()
 
+      | l, `String s when is_whitespace_only s ->
+        add_string l s;
+        after_frameset_mode ()
+
       | l, `Comment s ->
         emit l (`Comment s) after_frameset_mode
 
@@ -2733,6 +2796,9 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
       | _, `Start {name = "html"} as v ->
         in_body_mode_rules "html" after_after_body_mode v
 
+      | _, `String s as v when is_whitespace_only s ->
+        in_body_mode_rules "html" after_after_body_mode v
+
       | l, `EOF ->
         emit_end l
 
@@ -2750,6 +2816,9 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
       | _, `Doctype _
       | _, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020)
       | _, `Start {name = "html"} as v ->
+        in_body_mode_rules "html" after_after_frameset_mode v
+
+      | _, `String s as v when is_whitespace_only s ->
         in_body_mode_rules "html" after_after_frameset_mode v
 
       | l, `EOF ->
@@ -2786,6 +2855,11 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
         (fun () ->
       add_character l u_rep;
       mode ())
+
+    | l, `String s ->
+      add_string l s;
+      if not @@ is_whitespace_only s then frameset_ok := false;
+      mode ()
 
     | l, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020 as c) ->
       add_character l c;

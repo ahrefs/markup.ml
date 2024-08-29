@@ -969,3 +969,30 @@ val preprocess_input_stream :
     - HTML: [<html>] tags found in the body do not have their attributes added
       to the [`Start_element "html"] signal emitted at the beginning of the
       document. *)
+
+(* Exposing some internal types and functions to allow sane integration *)
+module Internals : sig
+  type location = int * int
+
+  module Token_tag : sig
+  type t =
+    {name         : string;
+     attributes   : (string * string) list;
+     self_closing : bool}
+  end
+
+    type token =
+  [ `Doctype of doctype
+  | `Start of Token_tag.t
+  | `End of Token_tag.t
+  | `Char of int
+  | `String of string
+  | `Comment of string
+  | `EOF ]
+
+  val parse_tokens :
+  ?report:(location -> Error.t -> unit) ->
+  ?context:[< `Document | `Fragment of string ] ->
+  ?depth_limit:int ->
+  (location * token) list -> 's parser
+end
