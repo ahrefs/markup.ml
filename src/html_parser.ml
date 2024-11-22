@@ -2235,7 +2235,7 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
       in_body_mode_rules "table" mode v
 
     | v ->
-      anything_else_in_table in_body_mode v
+      anything_else_in_table mode v
 
   (* 8.2.5.4.10. *)
   and in_table_text_mode only_space cs mode =
