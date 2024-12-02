@@ -175,6 +175,8 @@ struct
     let rec scan () =
       next_token begin function
         | _, `Doctype _ -> k `Document
+        | _, `String s when not @@ is_whitespace_only s -> k (`Fragment "body")
+        | _, `String _ -> scan ()
         | _, `Char c when not @@ is_whitespace c -> k (`Fragment "body")
         | _, `Char _ -> scan ()
         | _, `EOF -> k (`Fragment "body")
@@ -433,7 +435,7 @@ end
 (* Stack of open elements. *)
 module Stack :
 sig
-  type t = (element list ref * int)
+  type t = (element list ref * int option)
 
   val create : ?limit:int -> unit -> t
   val elements : t -> element list ref
@@ -458,13 +460,16 @@ sig
   val remove : t -> element -> unit
   val replace : t -> old:element -> new_:element -> unit
   val insert_below : t -> anchor:element -> new_:element -> unit
+
+  (**  [check_limit ~exn stack] raises [exn] if [stack] has reached it's limit. *)
+  val check_limit: t -> exn:exn -> unit
 end =
 struct
-  type t = (element list ref * int)
+  type t = (element list ref * int option)
   (** The Adoption Agency algorithm sometimes push too many elements when trying to recover
       from malformed HTMLs. Most of the time such HTML *)
 
-  let create ?(limit=Int.max_int) () = (ref [], limit)
+  let create ?limit () = (ref [], limit)
   let elements (el, _) = el
 
   let current_element (open_elements, _) =
@@ -498,17 +503,44 @@ struct
       (fun {element_name = ns, name'} ->
         ns = `HTML && name' = name) !open_elements
 
-  let in_scope_general scope_delimiters (open_elements, depth_limit) name' =
-    let rec scan depth = function
+  let with_scan error_prefix (open_elements, depth_limit) ~condition =
+    let rec scan_with_depth depth = function
       | [] -> false
-      | _ when depth = 0 -> failwith "in_scope_general: depth limit reached"
-      | {element_name = ns, name'' as name}::more ->
-        if ns = `HTML && name'' = name' then true
-        else
-          if list_mem_qname name scope_delimiters then false
-          else scan (depth-1) more
+      | _ when depth = 0 -> Format.kasprintf failwith "%s: depth limit reached" error_prefix
+      | elt ::more ->
+          begin match condition elt with
+          | Some v -> v
+          | None -> scan_with_depth (depth-1) more
+          end 
     in
-    scan depth_limit !open_elements
+    let rec scan_without_depth = function
+      | [] -> false
+      | elt ::more ->
+          begin match condition elt with
+          | Some v -> v
+          | None -> scan_without_depth  more
+          end 
+    in
+    match depth_limit with
+    | None -> scan_without_depth !open_elements
+    | Some depth -> scan_with_depth depth !open_elements
+
+  let in_scope_general scope_delimiters stack name' =
+    with_scan "in_scope_general" stack ~condition:(fun {element_name = ns, name'' as name} ->
+        if ns = `HTML && name'' = name' then Some true
+        else
+          if list_mem_qname name scope_delimiters then Some false
+          else None)
+
+  let check_limit (open_elements, depth_limit) ~exn =
+    let rec go depth = function
+      | [] -> ()
+      | _ :: _ when depth = 0 -> raise exn
+      | _ :: more -> go (depth - 1) more
+    in
+    Option.may 
+      (fun limit -> go limit !open_elements)
+      depth_limit
 
   let scope_delimiters =
     [`HTML, "applet"; `HTML, "caption"; `HTML, "html";
@@ -528,57 +560,37 @@ struct
   let in_table_scope =
     in_scope_general [`HTML, "html"; `HTML, "table"; `HTML, "template"]
 
-  let in_select_scope (open_elements, depth_limit) name =
-    let rec scan depth = function
-      | [] -> false
-      | _ when depth = 0 -> failwith "in_select_scope: depth limit reached"
-      | {element_name = ns, name'}::more ->
-        if ns <> `HTML then false
+  let in_select_scope stack name =
+    with_scan "in_select_scope" stack ~condition:(fun {element_name = ns, name'} ->
+        if ns <> `HTML then Some false
         else
-          if name' = name then true
+          if name' = name then Some true
           else
-            if name' = "optgroup" || name' = "option" then scan (depth-1) more
-            else false
-    in
-    scan depth_limit !open_elements
+            if name' = "optgroup" || name' = "option" then None
+            else Some false)
 
-  let one_in_scope (open_elements, depth_limit) names =
-    let rec scan depth = function
-      | [] -> false
-      | _ when depth = 0 -> failwith "one_in_scope: depth limit reached"
-      | {element_name = ns, name' as name}::more ->
-        if ns = `HTML && list_mem_string name' names then true
+  let one_in_scope stack names =
+    with_scan "one_in_scope" stack ~condition:(fun {element_name = ns, name' as name} ->
+        if ns = `HTML && list_mem_string name' names then Some true
         else
-          if list_mem_qname name scope_delimiters then false
-          else scan (depth-1) more
-    in
-    scan depth_limit !open_elements
+          if list_mem_qname name scope_delimiters then Some false
+          else None)
 
-  let one_in_table_scope (open_elements, depth_limit) names =
-    let rec scan depth = function
-      | [] -> false
-      | _ when depth = 0 -> failwith "one_in_table_scope: depth limit reached"
-      | {element_name = ns, name' as name}::more ->
-        if ns = `HTML && list_mem_string name' names then true
+  let one_in_table_scope stack names =
+    with_scan "one_in_table_scope" stack ~condition:(fun {element_name = ns, name' as name} ->
+        if ns = `HTML && list_mem_string name' names then Some true
         else
           if list_mem_qname name
               [`HTML, "html"; `HTML, "table"; `HTML, "template"] then
-            false
-          else scan (depth-1) more
-    in
-    scan depth_limit !open_elements
+            Some false
+          else None)
 
-  let target_in_scope (open_elements, depth_limit) node =
-    let rec scan depth = function
-      | [] -> false
-      | _ when depth = 0 -> failwith "target_in_scope: depth limit reached"
-      | e::more ->
-        if e == node then true
+  let target_in_scope stack node =
+    with_scan "target_in_scope" stack ~condition:(fun e ->
+        if e == node then Some true
         else
-          if list_mem_qname node.element_name scope_delimiters then false
-          else scan (depth-1) more
-    in
-    scan depth_limit !open_elements
+          if list_mem_qname node.element_name scope_delimiters then Some false
+          else None)
 
   let remove (open_elements, _) element =
     open_elements := List.filter ((!=) element) !open_elements;
@@ -812,6 +824,7 @@ struct
       | l, Comment s -> (l, `Comment s)::acc
     in
 
+    let depth_limit = Option.default Int.max_int depth_limit in
     let result =
       List.fold_left (traverse depth_limit) []
         (Stack.require_current_element subtree_buffer.open_elements).children
@@ -1047,6 +1060,7 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
   let form_element_pointer = ref None in
 
   let add_character = Text.add text in
+  let add_string = Text.add_string text in
 
   set_foreign (fun () ->
     Stack.current_element_is_foreign context open_elements);
@@ -1132,7 +1146,7 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
           | _::ancestors -> iterate' ancestors
         in
         iterate' ancestors
-      | {element_name = _, ("tr" | "th")}::_::_ -> in_cell_mode
+      | {element_name = _, ("td" | "th")}::_::_ -> in_cell_mode
       | {element_name = _, "tr"}::_ -> in_row_mode
       | {element_name = _, ("tbody" | "thead" | "tfoot")}::_ ->
         in_table_body_mode
@@ -1214,6 +1228,10 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
     in
     let elements_ref = Stack.elements open_elements in
     elements_ref := element_entry::!elements_ref;
+    Stack.check_limit open_elements
+      ~exn:(Failure
+        (Format.sprintf "Pushing %S at (l: %d, c: %d) depth limit reached"
+          name (fst location) (snd location)));
 
     if set_form_element_pointer then
       form_element_pointer := Some element_entry;
@@ -1386,6 +1404,7 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
             `Start {name = "svg"} -> false
         | Some {is_html_integration_point = true}, `Start _ -> false
         | Some {is_html_integration_point = true}, `Char _ -> false
+        | Some {is_html_integration_point = true}, `String _ -> false
         | _, `EOF -> false
         | _ -> true
       in
@@ -1398,6 +1417,9 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
   and initial_mode () =
     dispatch tokens begin function
       | _, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) ->
+        initial_mode ()
+
+      | _, `String s when is_whitespace_only s ->
         initial_mode ()
 
       | l, `Comment s ->
@@ -1424,6 +1446,9 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
       | _, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) ->
         before_html_mode ()
 
+      | _, `String s when is_whitespace_only s ->
+        before_html_mode ()
+
       | l, `Start ({name = "html"} as t) ->
         push_and_emit l t before_head_mode
 
@@ -1440,6 +1465,9 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
   and before_head_mode () =
     dispatch tokens begin function
       | _, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) ->
+        before_head_mode ()
+
+      | _, `String s when is_whitespace_only s ->
         before_head_mode ()
 
       | l, `Comment s ->
@@ -1474,6 +1502,10 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
   and in_head_mode_rules mode = function
     | l, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020 as c) ->
       add_character l c;
+      mode ()
+
+    | l, `String s when is_whitespace_only s ->
+      add_string l s;
       mode ()
 
     | l, `Comment s ->
@@ -1547,6 +1579,9 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
       | l, `End {name = "noscript"} ->
         pop l in_head_mode
 
+      | _, `String s as v when is_whitespace_only s ->
+        in_head_mode_rules in_head_noscript_mode v
+
       | _, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020)
       | _, `Comment _
       | _, `Start {name =
@@ -1571,6 +1606,10 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
     dispatch tokens begin function
       | l, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020 as c) ->
         add_character l c;
+        after_head_mode ()
+
+      | l, `String s when is_whitespace_only s ->
+        add_string l s;
         after_head_mode ()
 
       | l, `Comment s ->
@@ -1628,6 +1667,12 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
   and in_body_mode_rules context_name mode = function
     | l, `Char 0 ->
       report l (`Bad_token ("U+0000", "body", "null")) !throw mode
+
+    | l, `String s ->
+      reconstruct_active_formatting_elements (fun () ->
+      add_string l s;
+      if not @@ is_whitespace_only s then frameset_ok := false;
+      mode ())
 
     | l, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020 as c) ->
       reconstruct_active_formatting_elements (fun () ->
@@ -1732,8 +1777,11 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
       frameset_ok := false;
       close_current_p_element l (fun () ->
       push_and_emit l t (fun () ->
+      (* https://html.spec.whatwg.org/multipage/grouping-content.html#the-pre-element *)
+      (* In the HTML syntax, a leading newline character immediately following the pre element start tag is stripped. *)
       next_expected tokens !throw (function
         | _, `Char 0x000A -> mode ()
+        | loc, `String s when String.starts_with ~prefix:"\n" s -> push tokens (loc, `String (String.sub s 1 (String.length s - 1))); mode ()
         | v ->
           push tokens v;
           mode ())))
@@ -1947,6 +1995,7 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
       set_tokenizer_state `RCDATA;
       next_expected tokens !throw (function
         | _, `Char 0x000A -> text_mode mode
+        | loc, `String s when String.starts_with ~prefix:"\n" s -> push tokens (loc, `String (String.sub s 1 (String.length s - 1))); text_mode mode
         | v ->
           push tokens v;
           text_mode mode))
@@ -2079,6 +2128,10 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
         add_character l c;
         text_mode original_mode
 
+      | l, `String s ->
+        add_string l s;
+        text_mode original_mode
+
       | l, `EOF as v ->
         report l (`Unexpected_eoi "content") !throw (fun () ->
         push tokens v;
@@ -2110,7 +2163,7 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
     dispatch tokens (fun v -> in_table_mode_rules in_table_mode v)
 
   and in_table_mode_rules mode = function
-    | _, `Char _ as v
+    | (_, `Char _| _, `String _) as v
         when Stack.current_element_is open_elements
                ["table"; "tbody"; "tfoot"; "thead"; "tr"] ->
       push tokens v;
@@ -2182,7 +2235,7 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
       in_body_mode_rules "table" mode v
 
     | v ->
-      anything_else_in_table mode v
+      anything_else_in_table in_body_mode v
 
   (* 8.2.5.4.10. *)
   and in_table_text_mode only_space cs mode =
@@ -2195,6 +2248,12 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
         in_table_text_mode only_space (v::cs) mode
 
       | _, `Char _ as v ->
+        in_table_text_mode false (v::cs) mode
+
+      | (_, `String s as v) when is_whitespace_only s ->
+        in_table_text_mode only_space (v::cs) mode
+
+      | _, `String _ as v ->
         in_table_text_mode false (v::cs) mode
 
       | v ->
@@ -2263,6 +2322,10 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
     dispatch tokens begin function
       | l, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020 as c) ->
         add_character l c;
+        in_column_group_mode ()
+
+      | l, `String s when is_whitespace_only s ->
+        add_string l s;
         in_column_group_mode ()
 
       | l, `Comment s ->
@@ -2459,6 +2522,10 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
       add_character l c;
       mode ()
 
+    | l, `String s ->
+      add_string l s;
+      mode ()
+
     | l, `Comment s ->
       emit l (`Comment s) mode
 
@@ -2562,7 +2629,7 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
 
   (* 8.2.5.4.18. *)
   and in_template_mode_rules mode = function
-    | _, (`Char _ | `Comment _ | `Doctype _) as v ->
+    | _, (`Char _ | `Comment _ | `Doctype _ | `String _) as v ->
       in_body_mode_rules "template" mode v
 
     | _, `Start {name =
@@ -2621,6 +2688,9 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
       | _, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) as v ->
         in_body_mode_rules "html" after_body_mode v
 
+      | (_, `String s) as v when is_whitespace_only s ->
+        in_body_mode_rules "html" after_body_mode v
+
       | l, `Comment s ->
         emit l (`Comment s) after_body_mode
 
@@ -2648,6 +2718,10 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
     dispatch tokens begin function
       | l, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020 as c) ->
         add_character l c;
+        in_frameset_mode ()
+
+      | l, `String s when is_whitespace_only s ->
+        add_string l s;
         in_frameset_mode ()
 
       | l, `Comment s ->
@@ -2699,6 +2773,10 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
         add_character l c;
         after_frameset_mode ()
 
+      | l, `String s when is_whitespace_only s ->
+        add_string l s;
+        after_frameset_mode ()
+
       | l, `Comment s ->
         emit l (`Comment s) after_frameset_mode
 
@@ -2733,6 +2811,9 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
       | _, `Start {name = "html"} as v ->
         in_body_mode_rules "html" after_after_body_mode v
 
+      | _, `String s as v when is_whitespace_only s ->
+        in_body_mode_rules "html" after_after_body_mode v
+
       | l, `EOF ->
         emit_end l
 
@@ -2750,6 +2831,9 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
       | _, `Doctype _
       | _, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020)
       | _, `Start {name = "html"} as v ->
+        in_body_mode_rules "html" after_after_frameset_mode v
+
+      | _, `String s as v when is_whitespace_only s ->
         in_body_mode_rules "html" after_after_frameset_mode v
 
       | l, `EOF ->
@@ -2786,6 +2870,11 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
         (fun () ->
       add_character l u_rep;
       mode ())
+
+    | l, `String s ->
+      add_string l s;
+      if not @@ is_whitespace_only s then frameset_ok := false;
+      mode ()
 
     | l, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020 as c) ->
       add_character l c;

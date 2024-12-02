@@ -136,6 +136,13 @@ struct
     Kstream.construct constructor
     |> stream_to_parser
 
+  let parse_tokens ?depth_limit report context tokens =
+    let tokens = Kstream.of_list tokens in
+    let signals =
+      Html_parser.parse ?depth_limit context report (tokens, ignore, ignore)
+    in
+    stream_to_parser signals
+
   let write_html ?escape_attribute ?escape_text signals =
     signals
     |> Html_writer.write ?escape_attribute ?escape_text
@@ -286,6 +293,14 @@ struct
 
     Cps.parse_html (wrap_report report) ?depth_limit ?encoding context source
 
+  let parse_tokens
+      ?(report = fun _ _ -> IO.return ())
+      ?context
+      ?depth_limit
+      tokens =
+
+    Cps.parse_tokens ?depth_limit (wrap_report report) context tokens
+
   let write_html ?escape_attribute ?escape_text signals =
     Cps.write_html ?escape_attribute ?escape_text signals
 
@@ -337,3 +352,12 @@ struct
 end
 
 include Asynchronous (Synchronous)
+
+module Internals = struct
+  include Common
+  module Token_tag = Common.Token_tag
+
+  type token = Html_tokenizer.token
+
+  let parse_tokens = parse_tokens
+end

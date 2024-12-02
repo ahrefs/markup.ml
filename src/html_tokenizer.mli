@@ -8,6 +8,7 @@ type token =
   | `Start of Token_tag.t
   | `End of Token_tag.t
   | `Char of int
+  | `String of string
   | `Comment of string
   | `EOF ]
 

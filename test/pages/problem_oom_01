@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+    <body>
+        <form name="form1" method="post" action="mailto:conlegno45@hotmail.com?subject=Reservering van kaarten Jubileumconcert Con Legno 2024" enctype="text/plain">
+            <font size="4">
+                <TABLE BORDER="0" WIDTH="47%"><tr><form></form></tr></table>
+                <table> <tr> <td>some text </tr><tr> <td>some text</td></tr></table>
+            </font>
+        </form>
+        <svg>
+            <path/>
+        </svg>
+    </body>
+</html>

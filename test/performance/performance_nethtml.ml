@@ -13,9 +13,4 @@ let parse file =
   |> parse_document ~dtd:relaxed_html40_dtd
   |> ignore
 
-let () =
-  measure 100 "nethtml" google_page "html" (fun () ->
-    parse google_page);
-
-  measure 100 "nethtml" xml_spec "html" (fun () ->
-    parse xml_spec)
+let () = do_full_benchmark "nethtml" ~parse_html:parse

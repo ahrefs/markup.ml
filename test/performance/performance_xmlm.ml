@@ -15,6 +15,4 @@ let parse file =
     Printf.printf "%i %i %s\n" l c (error_message e);
     raise exn
 
-let () =
-  measure 100 "xmlm" xml_spec "xml" (fun () ->
-    parse xml_spec)
+let () = do_full_benchmark "xmlm" ~parse_xml:parse
