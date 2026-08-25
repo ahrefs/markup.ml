@@ -24,13 +24,17 @@ module Synchronous : IO with type 'a t = 'a = struct
   let to_cps f throw k = match f () with v -> k v | exception exn -> throw exn
 end
 
-type async = unit
-type sync = unit
-type ('data, 'sync) stream = 'data Kstream.t
+type async = Markup_common.async
+type sync = Markup_common.sync
 
-let kstream s = s
-let of_kstream s = s
-let of_list = Kstream.of_list
+(* [stream] is defined by the markup.common library, so that streams can be
+   exchanged with the other libraries built on it. [Kstream] is this library's
+   own stream implementation; both conversions below are the identity. *)
+type ('data, 'sync) stream = ('data, 'sync) Markup_common.stream
+
+let kstream = Markup_common.Stream.Private.of_stream
+let of_kstream = Markup_common.Stream.Private.to_stream
+let of_list l = Kstream.of_list l |> of_kstream
 
 type location = Common.location
 
@@ -60,10 +64,10 @@ let signal_to_string = Common.signal_to_string
 
 type 's parser = {
   mutable location : location;
-  mutable signals : (signal, 's) stream;
+  mutable signals : signal Kstream.t;
 }
 
-let signals parser = parser.signals
+let signals parser = of_kstream parser.signals
 let location parser = parser.location
 
 let stream_to_parser s =
@@ -77,6 +81,7 @@ let stream_to_parser s =
 
 module Cps = struct
   let parse_xml report ?encoding namespace entity context source =
+    let source = kstream source in
     let with_encoding (encoding : Encoding.t) k =
       source |> encoding ~report
       |> Input.preprocess Common.is_valid_xml_char report
@@ -96,7 +101,10 @@ module Cps = struct
     Kstream.construct constructor |> stream_to_parser
 
   let write_xml report prefix signals =
-    signals |> Xml_writer.write report prefix |> Utility.strings_to_bytes
+    signals |> kstream
+    |> Xml_writer.write report prefix
+    |> Utility.strings_to_bytes
+    |> of_kstream
 
   let parse_tokens ?depth_limit report context tokens =
     let tokens = Kstream.of_list tokens in
@@ -106,6 +114,7 @@ module Cps = struct
     stream_to_parser signals
 
   let parse_html report ?depth_limit ?encoding context source =
+    let source = kstream source in
     let with_encoding (encoding : Encoding.t) k =
       source |> encoding ~report
       |> Input.preprocess Common.is_valid_html_char report
@@ -124,22 +133,52 @@ module Cps = struct
     Kstream.construct constructor |> stream_to_parser
 
   let write_html ?escape_attribute ?escape_text signals =
-    signals
+    signals |> kstream
     |> Html_writer.write ?escape_attribute ?escape_text
     |> Utility.strings_to_bytes
+    |> of_kstream
 end
 
-let string = Stream_io.string
-let buffer = Stream_io.buffer
-let channel = Stream_io.channel
-let file = Stream_io.file
-let to_channel c bytes = Stream_io.to_channel c bytes |> Synchronous.of_cps
-let to_file f bytes = Stream_io.to_file f bytes |> Synchronous.of_cps
+let string s = Stream_io.string s |> of_kstream
+let buffer b = Stream_io.buffer b |> of_kstream
+let channel c = Stream_io.channel c |> of_kstream
+
+let file f =
+  let s, close = Stream_io.file f in
+  (of_kstream s, close)
+
+let to_channel c bytes =
+  Stream_io.to_channel c (kstream bytes) |> Synchronous.of_cps
+
+let to_file f bytes = Stream_io.to_file f (kstream bytes) |> Synchronous.of_cps
 
 let preprocess_input_stream source =
-  Input.preprocess (fun _ -> true) Error.ignore_errors source
+  let signals, get_location =
+    Input.preprocess (fun _ -> true) Error.ignore_errors (kstream source)
+  in
+  (of_kstream signals, get_location)
 
-include Utility
+type 'a node = 'a Utility.node
+
+let content s = Utility.content (kstream s) |> of_kstream
+let strings_to_bytes s = Utility.strings_to_bytes (kstream s) |> of_kstream
+let text s = Utility.text (kstream s) |> of_kstream
+let trim s = Utility.trim (kstream s) |> of_kstream
+let normalize_text s = Utility.normalize_text (kstream s) |> of_kstream
+let pretty_print s = Utility.pretty_print (kstream s) |> of_kstream
+let html5 s = Utility.html5 (kstream s) |> of_kstream
+let xhtml ?dtd s = Utility.xhtml ?dtd (kstream s) |> of_kstream
+let xhtml_entity = Utility.xhtml_entity
+let from_tree f v = Utility.from_tree f v |> of_kstream
+
+let trees ?text ?element ?comment ?pi ?xml ?doctype s =
+  Utility.trees ?text ?element ?comment ?pi ?xml ?doctype (kstream s)
+  |> of_kstream
+
+let elements f s =
+  Utility.elements f (kstream s)
+  |> Kstream.map (fun sub _ k -> k (of_kstream sub))
+  |> of_kstream
 
 module Ns = struct
   let html = Common.html_ns
@@ -232,7 +271,7 @@ module Asynchronous (IO : IO) = struct
     include Encoding
 
     let decode ?(report = fun _ _ -> IO.return ()) (f : Encoding.t) s =
-      f ~report:(wrap_report report) s
+      f ~report:(wrap_report report) (kstream s) |> of_kstream
   end
 
   let parse_xml ?(report = fun _ _ -> IO.return ()) ?encoding
@@ -255,44 +294,57 @@ module Asynchronous (IO : IO) = struct
   let write_html ?escape_attribute ?escape_text signals =
     Cps.write_html ?escape_attribute ?escape_text signals
 
-  let to_string bytes = Stream_io.to_string bytes |> IO.of_cps
-  let to_buffer bytes = Stream_io.to_buffer bytes |> IO.of_cps
+  let to_string bytes = Stream_io.to_string (kstream bytes) |> IO.of_cps
+  let to_buffer bytes = Stream_io.to_buffer (kstream bytes) |> IO.of_cps
 
   let stream f =
     let f = IO.to_cps f in
     (fun throw e k -> f throw (function None -> e () | Some v -> k v))
     |> Kstream.make
+    |> of_kstream
 
   let fn = stream
-  let next s = Kstream.next_option s |> IO.of_cps
-  let peek s = Kstream.peek_option s |> IO.of_cps
+  let next s = Kstream.next_option (kstream s) |> IO.of_cps
+  let peek s = Kstream.peek_option (kstream s) |> IO.of_cps
 
   (* Without Flambda, thunks are repeatedly created and passed on IO.to_cps,
      resulting in a performance penalty. Flambda seems to optimize this away,
      however. *)
 
   let transform f v s =
-    Kstream.transform (fun v s -> IO.to_cps (fun () -> f v s)) v s
+    Kstream.transform (fun v s -> IO.to_cps (fun () -> f v s)) v (kstream s)
+    |> of_kstream
 
   let fold f v s =
-    Kstream.fold (fun v v' -> IO.to_cps (fun () -> f v v')) v s |> IO.of_cps
+    Kstream.fold (fun v v' -> IO.to_cps (fun () -> f v v')) v (kstream s)
+    |> IO.of_cps
 
-  let map f s = Kstream.map (fun v -> IO.to_cps (fun () -> f v)) s
-  let filter f s = Kstream.filter (fun v -> IO.to_cps (fun () -> f v)) s
-  let filter_map f s = Kstream.filter_map (fun v -> IO.to_cps (fun () -> f v)) s
+  let map f s =
+    Kstream.map (fun v -> IO.to_cps (fun () -> f v)) (kstream s) |> of_kstream
+
+  let filter f s =
+    Kstream.filter (fun v -> IO.to_cps (fun () -> f v)) (kstream s)
+    |> of_kstream
+
+  let filter_map f s =
+    Kstream.filter_map (fun v -> IO.to_cps (fun () -> f v)) (kstream s)
+    |> of_kstream
 
   let iter f s =
-    Kstream.iter (fun v -> IO.to_cps (fun () -> f v)) s |> IO.of_cps
+    Kstream.iter (fun v -> IO.to_cps (fun () -> f v)) (kstream s) |> IO.of_cps
 
   let drain s = iter (fun _ -> IO.return ()) s
-  let to_list s = Kstream.to_list s |> IO.of_cps
+  let to_list s = Kstream.to_list (kstream s) |> IO.of_cps
 
   let load s =
-    (fun throw k -> Kstream.to_list s throw (fun l -> k (Kstream.of_list l)))
+    (fun throw k ->
+      Kstream.to_list (kstream s) throw (fun l ->
+          k (of_kstream (Kstream.of_list l))))
     |> IO.of_cps
 
   let tree ?text ?element ?comment ?pi ?xml ?doctype s =
-    Utility.tree ?text ?element ?comment ?pi ?xml ?doctype s |> IO.of_cps
+    Utility.tree ?text ?element ?comment ?pi ?xml ?doctype (kstream s)
+    |> IO.of_cps
 end
 
 include Asynchronous (Synchronous)

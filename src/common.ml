@@ -4,21 +4,18 @@
 type 'a cont = 'a -> unit
 type 'a cps = exn cont -> 'a cont -> unit
 
-type location = int * int
+type location = Markup_common.location
 
-let compare_locations (line, column) (line', column') =
-  match line - line' with
-  | 0 -> column - column'
-  | order -> order
+let compare_locations = Markup_common.compare_locations
 
-type name = string * string
+type name = Markup_common.name
 
-let xml_ns = "http://www.w3.org/XML/1998/namespace"
-let xmlns_ns = "http://www.w3.org/2000/xmlns/"
-let xlink_ns = "http://www.w3.org/1999/xlink"
-let html_ns = "http://www.w3.org/1999/xhtml"
-let svg_ns = "http://www.w3.org/2000/svg"
-let mathml_ns = "http://www.w3.org/1998/Math/MathML"
+let xml_ns = Markup_common.Ns.xml
+let xmlns_ns = Markup_common.Ns.xmlns
+let xlink_ns = Markup_common.Ns.xlink
+let html_ns = Markup_common.Ns.html
+let svg_ns = Markup_common.Ns.svg
+let mathml_ns = Markup_common.Ns.mathml
 
 module Token_tag =
 struct
@@ -28,26 +25,21 @@ struct
      self_closing : bool}
 end
 
-type xml_declaration =
-  {version    : string;
-   encoding   : string option;
-   standalone : bool option}
+type xml_declaration = Markup_common.xml_declaration = {
+  version : string;
+  encoding : string option;
+  standalone : bool option;
+}
 
-type doctype =
-  {doctype_name      : string option;
-   public_identifier : string option;
-   system_identifier : string option;
-   raw_text          : string option;
-   force_quirks      : bool}
+type doctype = Markup_common.doctype = {
+  doctype_name : string option;
+  public_identifier : string option;
+  system_identifier : string option;
+  raw_text : string option;
+  force_quirks : bool;
+}
 
-type signal =
-  [ `Start_element of name * (name * string) list
-  | `End_element
-  | `Text of string list
-  | `Xml of xml_declaration
-  | `Doctype of doctype
-  | `PI of string * string
-  | `Comment of string ]
+type signal = Markup_common.signal
 
 type general_token =
   [ `Xml of xml_declaration
@@ -147,64 +139,7 @@ let is_valid_xml_char c =
   || is_in_range 0xE000 0xFFFD c
   || is_in_range 0x10000 0x10FFFF c
 
-let signal_to_string = function
-  | `Comment s ->
-    Printf.sprintf "<!--%s-->" s
-
-  | `Doctype d ->
-    let text =
-      match d.doctype_name with
-      | None ->
-        begin match d.raw_text with
-        | None -> ""
-        | Some s -> " " ^ s
-        end
-      | Some name ->
-        match d.public_identifier, d.system_identifier with
-        | None, None -> " " ^ name
-        | Some p, None -> Printf.sprintf " %s PUBLIC \"%s\"" name p
-        | None, Some s -> Printf.sprintf " %s SYSTEM \"%s\"" name s
-        | Some p, Some s -> Printf.sprintf " %s PUBLIC \"%s\" \"%s\"" name p s
-    in
-    Printf.sprintf "<!DOCTYPE%s>" text
-
-  | `Start_element (name, attributes) ->
-    let name_to_string = function
-      | "", local_name -> local_name
-      | ns, local_name -> ns ^ ":" ^ local_name
-    in
-    let attributes =
-      attributes
-      |> List.map (fun (name, value) ->
-        Printf.sprintf " %s=\"%s\"" (name_to_string name) value)
-      |> String.concat ""
-    in
-    Printf.sprintf "<%s%s>" (name_to_string name) attributes
-
-  | `End_element ->
-    "</...>"
-
-  | `Text ss ->
-    String.concat "" ss
-
-  | `Xml x ->
-    let s = Printf.sprintf "<?xml version=\"%s\">" x.version in
-    let s =
-      match x.encoding with
-      | None -> s
-      | Some encoding -> Printf.sprintf "%s encoding=\"%s\"" s encoding
-    in
-    let s =
-      match x.standalone with
-      | None -> s
-      | Some standalone ->
-        Printf.sprintf
-          "%s standalone=\"%s\"" s (if standalone then "yes" else "no")
-    in
-    s ^ "?>"
-
-  | `PI (target, s) ->
-    Printf.sprintf "<?%s %s?>" target s
+let signal_to_string = Markup_common.signal_to_string
 
 let token_to_string = function
   | `Xml x ->

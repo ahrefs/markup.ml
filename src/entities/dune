@@ -1,0 +1,8 @@
+(library
+ (name markup_entities)
+ (public_name markup.entities)
+ (synopsis "HTML character entity table and lookup trie for Markup.ml")
+ (instrumentation
+  (backend bisect_ppx))
+ (flags
+  (:standard -w -9)))

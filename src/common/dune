@@ -1,0 +1,9 @@
+(library
+ (name markup_common)
+ (public_name markup.common)
+ (synopsis "Shared signal, stream and error types for Markup.ml")
+ (instrumentation
+  (backend bisect_ppx))
+ (private_modules common)
+ (flags
+  (:standard -w -9)))

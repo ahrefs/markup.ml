@@ -86,13 +86,17 @@ val write_xml  : signal stream -> char stream
 
 (** {2 Streams} *)
 
-type async
-type sync
+type async = Markup_common.async
+type sync = Markup_common.sync
 (** Phantom types for use with [('a, 's) stream] in place of ['s]. See
     explanation below. *)
 
-type ('a, 's) stream
+type ('a, 's) stream = ('a, 's) Markup_common.stream
 (** Streams of elements of type ['a].
+
+    This is the same type as {!Markup_common.stream}, so that streams can be
+    exchanged with other libraries built on [markup.common], such as
+    [markup.tiny].
 
     In simple usage, when using only this module [Markup], the additional type
     parameter ['s] is always [sync], and there is no need to consider it
@@ -115,7 +119,7 @@ type ('a, 's) stream
     debug parser output, use optional argument [?report] of the parsers, and
     look in module {!Error}. *)
 
-type location = int * int
+type location = Markup_common.location
 (** Line and column for parsing errors. Both numbers are one-based. *)
 
 (** Error type and [to_string] function. *)
@@ -227,17 +231,17 @@ end
 
 (** {2 Signals} *)
 
-type name = string * string
+type name = Markup_common.name
 (** Expanded name: a namespace URI followed by a local name. *)
 
-type xml_declaration =
+type xml_declaration = Markup_common.xml_declaration =
   {version    : string;
    encoding   : string option;
    standalone : bool option}
 (** Representation of an XML declaration, i.e.
     [<?xml version="1.0" encoding="utf-8"?>]. *)
 
-type doctype =
+type doctype = Markup_common.doctype =
   {doctype_name      : string option;
    public_identifier : string option;
    system_identifier : string option;
@@ -972,7 +976,7 @@ val preprocess_input_stream :
 
 (* Exposing some internal types and functions to allow sane integration *)
 module Internals : sig
-  type location = int * int
+  type location = Markup_common.location
 
   module Token_tag : sig
   type t =

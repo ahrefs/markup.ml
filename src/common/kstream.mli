@@ -15,7 +15,8 @@
    interface of Markup.ml, and the internal code should be calling them only
    when it is statically provable that the functions will succeed. *)
 
-open Common
+type 'a cont = 'a -> unit
+type 'a cps = exn cont -> 'a cont -> unit
 
 type 'a t
 
