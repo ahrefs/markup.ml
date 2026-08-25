@@ -33,8 +33,8 @@ let parse_html ?(report = fun _ _ -> ())
     | () -> resume ()
     | exception exn -> throw exn
   in
-  let tokens = Ragel_html_tokenizer.tokenize html |> Kstream.of_list in
-  Html_parser.parse (Some context) report (tokens, ignore, ignore)
+  let tokens = Token_source.create html in
+  Html_parser.parse context report tokens
   |> Kstream.map (fun (_, signal) _ continue -> continue signal)
   |> Markup_common.Stream.Private.to_stream
   |> fun stream -> (stream : (signal, sync) stream)
