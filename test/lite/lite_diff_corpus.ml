@@ -45,6 +45,22 @@ type result =
       (Markup_common.location * Markup_common.Error.t) list
   | Raised of string * (Markup_common.location * Markup_common.Error.t) list
 
+type stats = {
+  mutable wall_seconds : float;
+  mutable minor_words : float;
+}
+
+let empty_stats () = {wall_seconds = 0.; minor_words = 0.}
+
+let measure stats f =
+  let minor_words_before = (Gc.quick_stat ()).minor_words in
+  let wall_before = Unix.gettimeofday () in
+  let result = f () in
+  stats.wall_seconds <- stats.wall_seconds +. Unix.gettimeofday () -. wall_before;
+  stats.minor_words <-
+    stats.minor_words +. (Gc.quick_stat ()).minor_words -. minor_words_before;
+  result
+
 let run parse collect_signals html =
   let errors = ref [] in
   let report location error = errors := (location, error) :: !errors in
@@ -91,21 +107,27 @@ let () =
     exit 2
   end;
   let failures = ref 0 in
+  let oracle_stats = empty_stats () in
+  let lite_stats = empty_stats () in
   List.iteri (fun index path ->
     let html = CCIO.File.read_exn (CCIO.File.make path) in
-    let oracle =
-      run Oracle.parse (collect Markup.iter) html
+    let oracle = measure oracle_stats (fun () ->
+      run Oracle.parse (collect Markup.iter) html)
     in
-    let lite =
+    let lite = measure lite_stats (fun () ->
       run
         (fun report html -> Markup_lite.parse_html ~report html)
-        (collect Markup_lite.iter) html
+        (collect Markup_lite.iter) html)
     in
     if not (compare path oracle lite) then incr failures;
     if (index + 1) mod 100 = 0 then
       Printf.eprintf "checked %d/%d\r%!" (index + 1) (List.length files))
     files;
   Printf.eprintf "checked %d/%d\n%!" (List.length files) (List.length files);
+  Printf.printf
+    "oracle: wall_seconds=%.6f minor_words=%.0f\nlite:   wall_seconds=%.6f minor_words=%.0f\n%!"
+    oracle_stats.wall_seconds oracle_stats.minor_words
+    lite_stats.wall_seconds lite_stats.minor_words;
   if !failures <> 0 then begin
     Printf.eprintf "FAILED: %d files differed\n" !failures;
     exit 1
