@@ -27,6 +27,21 @@ performance-test :
 	dune exec test/performance/performance_nethtml.exe
 	dune exec test/performance/performance_xmlm.exe
 
+BENCH_EXE := _build/default/test/performance/performance_corpus.exe
+BENCH_CORPUS := big_tests/llm_tracker/
+
+.PHONY : bench-release
+bench-release :
+	dune build --profile release test/performance/performance_corpus.exe
+
+.PHONY : bench-hyperfine
+bench-hyperfine : bench-release
+	hyperfine '$(BENCH_EXE) $(BENCH_CORPUS)'
+
+.PHONY : bench-perf
+bench-perf : bench-release
+	perf stat -r 5 $(BENCH_EXE) $(BENCH_CORPUS)
+
 .PHONY : js-test
 js-test :
 	dune build test/js_of_ocaml/test_js_of_ocaml.bc.js

@@ -9,9 +9,15 @@
  (libraries markup performance_common unix))
 
 (executable
+ (name performance_corpus)
+ (modules performance_corpus)
+ (libraries containers markup unix))
+
+(executable
  (name performance_nethtml)
  (modules performance_nethtml)
- (libraries threads netstring performance_common))
+ (enabled_if (= %{profile} nethtml))
+ (libraries netstring performance_common))
 
 (executable
  (name performance_xmlm)
