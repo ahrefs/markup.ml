@@ -1,7 +1,6 @@
 open OUnit2
 open Test_support
 open Markup__Common
-module Error = Markup__Error
 module Kstream = Markup__Kstream
 
 let print_token_stream stream =
@@ -45,7 +44,9 @@ let expect ?prefix ?(context = Some `Document) text signals =
     expect_no_location_signals ?prefix signal_to_string text signals
   in
 
-  let token_stream = Markup__Html_tokenizer.Ragel.tokenize text in
+  let token_stream =
+    text |> Ragel_html_tokenizer.tokenize |> Kstream.of_list
+  in
 
   let signal_stream =
     Markup__Html_parser.parse context report (token_stream, ignore, ignore)

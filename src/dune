@@ -4,7 +4,7 @@
  (synopsis "Error-recovering functional HTML5 and XML parsers")
  (instrumentation
   (backend bisect_ppx))
- (libraries devkit uutf markup.common markup.entities)
+ (libraries uutf markup.common markup.entities)
  (flags
   (:standard -w -9)))
 
