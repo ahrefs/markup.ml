@@ -6,8 +6,8 @@ build :
 # is checked into git.
 .PHONY : entities
 entities :
-	dune exec src/translate_entities/translate_entities.exe \
-	  > src/entities.ml
+	dune exec src/entities/translate_entities/translate_entities.exe \
+	  > src/entities/entities.ml
 
 .PHONY : test
 test :
@@ -17,7 +17,7 @@ test :
 coverage :
 	find . -name '*.coverage' | xargs rm -f
 	dune runtest --instrument-with bisect_ppx --force
-	bisect-ppx-report html --expect src/ --do-not-expect src/translate_entities/
+	bisect-ppx-report html --expect src/ --do-not-expect src/entities/translate_entities/
 	bisect-ppx-report summary
 	@echo See _coverage/index.html
 
