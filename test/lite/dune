@@ -1,0 +1,4 @@
+(executable
+ (name lite_diff_corpus)
+ (modules oracle lite_diff_corpus)
+ (libraries containers devkit markup markup.lite))

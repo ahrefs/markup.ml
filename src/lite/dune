@@ -1,0 +1,16 @@
+(library
+ (name markup_lite)
+ (public_name markup.lite)
+ (synopsis "Small fast synchronous HTML parser")
+ (private_modules
+  common
+  error
+  html_parser
+  html_tokenizer
+  kstream
+  namespace
+  ragel_html_tokenizer
+  text)
+ (libraries devkit markup.common uutf)
+ (flags
+  (:standard -w -9)))
