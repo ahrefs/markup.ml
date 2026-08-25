@@ -3,7 +3,7 @@
 
 open Common
 
-type location_out = {
+type location_out = Ragel_html_tokenizer.location_out = {
   mutable line : int;
   mutable column : int;
 }
@@ -15,45 +15,23 @@ type pushed_token = {
 }
 
 type t = {
-  mutable tokens : (location * Html_tokenizer.token) list;
+  scanner : Ragel_html_tokenizer.t;
   mutable pushed : pushed_token list;
-  mutable eof_line : int;
-  mutable eof_column : int;
 }
 
 let create html =
-  {tokens = Ragel_html_tokenizer.tokenize html;
-   pushed = [];
-   eof_line = 1;
-   eof_column = -1}
+  {scanner = Ragel_html_tokenizer.create html; pushed = []}
 
 let location () = {line = 1; column = -1}
 
-let set_location (out : location_out) line column =
-  out.line <- line;
-  out.column <- column
-
-let next source (_state : Html_tokenizer.state) out =
+let next source state (out : location_out) =
   match source.pushed with
   | {token; line; column}::rest ->
     source.pushed <- rest;
-    set_location out line column;
+    out.line <- line;
+    out.column <- column;
     token
-  | [] ->
-    match source.tokens with
-    | ((line, column), token)::rest ->
-      source.tokens <- rest;
-      set_location out line column;
-      begin match token with
-      | `EOF ->
-        source.eof_line <- line;
-        source.eof_column <- column
-      | _ -> ()
-      end;
-      token
-    | [] ->
-      set_location out source.eof_line source.eof_column;
-      `EOF
+  | [] -> Ragel_html_tokenizer.next source.scanner state out
 
 let push source ((line, column), token) =
   source.pushed <- {token; line; column}::source.pushed

@@ -9,6 +9,13 @@ entities :
 	dune exec src/entities/translate_entities/translate_entities.exe \
 	  > src/entities/entities.ml
 
+.PHONY : lite-ragel
+lite-ragel :
+	cd src/lite && ragel-ocaml -L -F1 \
+	  -o ragel_html_tokenizer.ml ragel_html_tokenizer.ml.rl
+	python3 -c 'from pathlib import Path; p = Path("src/lite/ragel_html_tokenizer.ml"); p.write_text("\n".join(line.rstrip() for line in p.read_text().splitlines()) + "\n")'
+	rm -f src/lite/ragel_html_tokenizer.ri
+
 .PHONY : test
 test :
 	dune runtest
