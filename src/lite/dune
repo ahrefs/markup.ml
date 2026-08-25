@@ -10,7 +10,8 @@
   kstream
   namespace
   ragel_html_tokenizer
-  text)
+  text
+  token_source)
  (libraries devkit markup.common uutf)
  (flags
   (:standard -w -9)))

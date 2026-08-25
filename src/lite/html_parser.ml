@@ -147,8 +147,7 @@ sig
 
   val uninitialized : unit -> t
   val initialize :
-    (location * Html_tokenizer.token) Kstream.t ->
-    [< simple_context ] option ->
+    [< simple_context ] ->
     t ->
       unit cps
 
@@ -234,17 +233,16 @@ struct
 
   let uninitialized () = ref (`Document, None, None)
 
-  let initialize tokens requested_context state throw k =
+  let initialize requested_context state _throw k =
     (fun k ->
       match requested_context with
-      | Some (`Fragment element) ->
+      | `Fragment element ->
         (* HTML element names are case-insensitive, even in foreign content.
            Lowercase the element name given by the user before analysis by the
            parser, to match this convention. [String.lowercase] is acceptable
            here because the API assumes the string [element] is in UTF-8. *)
         k (`Fragment (String.lowercase_ascii element), None)
-      | Some (`Document as c) -> k (c, None)
-      | None -> detect tokens throw k)
+      | `Document as c -> k (c, None))
     (fun (detected_context, deciding_token) ->
 
       let context =
@@ -1026,8 +1024,20 @@ end
 
 
 
-let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, set_foreign) =
+let parse ?depth_limit requested_context report tokens =
   let context = Context.uninitialized () in
+  let tokenizer_state = ref `Data in
+  let token_location = Token_source.location () in
+  let next tokens throw _empty k =
+    match Token_source.next tokens !tokenizer_state token_location with
+    | token -> k ((token_location.line, token_location.column), token)
+    | exception exn -> throw exn
+  in
+  let next_expected tokens throw k =
+    next tokens throw (fun () -> throw (Failure "stream empty")) k
+  in
+  let push = Token_source.push in
+  let set_tokenizer_state state = tokenizer_state := state in
 
   let throw = ref (fun _ -> ()) in
   let ended = ref (fun _ -> ()) in
@@ -1051,9 +1061,6 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
   let add_character = Text.add text in
   let add_string = Text.add_string text in
 
-  set_foreign (fun () ->
-    Stack.current_element_is_foreign context open_elements);
-
   let report_if_stack_has_other_than names k =
     let rec iterate = function
       | [] -> k ()
@@ -1068,7 +1075,7 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
   let rec current_mode = ref initial_mode
 
   and constructor throw_ k =
-    Context.initialize tokens requested_context context throw_ (fun () ->
+    Context.initialize requested_context context throw_ (fun () ->
 
     let initial_tokenizer_state =
       match Context.the_context context with
