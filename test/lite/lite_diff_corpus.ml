@@ -1,0 +1,113 @@
+let usage program =
+  Printf.eprintf "Usage: %s DIRECTORY\n" program;
+  exit 2
+
+let html_files directory =
+  let files = CCIO.File.read_dir ~recurse:true (CCIO.File.make directory) in
+  let rec collect acc =
+    match files () with
+    | None -> List.sort String.compare acc
+    | Some path ->
+      let path = CCIO.File.to_string path in
+      collect (if Filename.check_suffix path ".html" then path :: acc else acc)
+  in
+  collect []
+
+let collect iter stream =
+  let values = ref [] in
+  iter (fun value -> values := value :: !values) stream;
+  List.rev !values
+
+let equal_lists equal left right =
+  let rec loop left right =
+    match left, right with
+    | [], [] -> true
+    | l :: ls, r :: rs when equal l r -> loop ls rs
+    | _ -> false
+  in
+  loop left right
+
+let first_difference to_string left right =
+  let rec loop index left right =
+    match left, right with
+    | [], [] -> "no difference"
+    | [], _ :: _ -> Printf.sprintf "left ended at signal %d" index
+    | _ :: _, [] -> Printf.sprintf "right ended at signal %d" index
+    | l :: ls, r :: rs ->
+      if l = r then loop (index + 1) ls rs
+      else Printf.sprintf "signal %d:\n  oracle: %s\n  lite:   %s"
+          index (to_string l) (to_string r)
+  in
+  loop 0 left right
+
+type result =
+  | Parsed of Markup_common.signal list *
+      (Markup_common.location * Markup_common.Error.t) list
+  | Raised of string * (Markup_common.location * Markup_common.Error.t) list
+
+let run parse collect_signals html =
+  let errors = ref [] in
+  let report location error = errors := (location, error) :: !errors in
+  try Parsed (collect_signals (parse report html), List.rev !errors)
+  with exn -> Raised (Printexc.to_string exn, List.rev !errors)
+
+let compare path oracle lite =
+  match oracle, lite with
+  | Parsed (oracle_signals, oracle_errors), Parsed (lite_signals, lite_errors) ->
+    if not (equal_lists ( = ) oracle_signals lite_signals) then begin
+      Printf.eprintf "%s: signal mismatch: %s\n" path
+        (first_difference Markup_common.signal_to_string
+           oracle_signals lite_signals);
+      false
+    end
+    else if not (equal_lists ( = ) oracle_errors lite_errors) then begin
+      Printf.eprintf "%s: error/location mismatch\n" path;
+      false
+    end
+    else true
+  | Raised (oracle_exn, oracle_errors), Raised (lite_exn, lite_errors) ->
+    if oracle_exn = lite_exn && equal_lists ( = ) oracle_errors lite_errors then true
+    else begin
+      Printf.eprintf "%s: exception mismatch:\n  oracle: %s\n  lite:   %s\n"
+        path oracle_exn lite_exn;
+      false
+    end
+  | Raised (exn, _), Parsed _ ->
+    Printf.eprintf "%s: oracle raised but Lite did not: %s\n" path exn;
+    false
+  | Parsed _, Raised (exn, _) ->
+    Printf.eprintf "%s: Lite raised but oracle did not: %s\n" path exn;
+    false
+
+let () =
+  let directory =
+    match Array.to_list Sys.argv with
+    | [_; directory] -> directory
+    | _ -> usage Sys.argv.(0)
+  in
+  let files = html_files directory in
+  if files = [] then begin
+    Printf.eprintf "No .html files found under: %s\n" directory;
+    exit 2
+  end;
+  let failures = ref 0 in
+  List.iteri (fun index path ->
+    let html = CCIO.File.read_exn (CCIO.File.make path) in
+    let oracle =
+      run Oracle.parse (collect Markup.iter) html
+    in
+    let lite =
+      run
+        (fun report html -> Markup_lite.parse_html ~report html)
+        (collect Markup_lite.iter) html
+    in
+    if not (compare path oracle lite) then incr failures;
+    if (index + 1) mod 100 = 0 then
+      Printf.eprintf "checked %d/%d\r%!" (index + 1) (List.length files))
+    files;
+  Printf.eprintf "checked %d/%d\n%!" (List.length files) (List.length files);
+  if !failures <> 0 then begin
+    Printf.eprintf "FAILED: %d files differed\n" !failures;
+    exit 1
+  end;
+  Printf.printf "OK: %d HTML files matched exactly\n%!" (List.length files)
