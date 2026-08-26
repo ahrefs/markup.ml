@@ -859,11 +859,11 @@ end = struct
           let end_signal = (end_location, `End_element) in
           start_signal
           :: List.fold_left (traverse (depth - 1)) (end_signal :: acc) children
-      | l, Text ss -> begin
-          match acc with
+      | l, Text ss ->
+          begin match acc with
           | (_, `Text ss') :: rest -> (l, `Text (ss @ ss')) :: rest
           | _ -> (l, `Text ss) :: acc
-        end
+          end
       | l, PI (t, s) -> (l, `PI (t, s)) :: acc
       | l, Comment s -> (l, `Comment s) :: acc
     in
@@ -999,16 +999,17 @@ end = struct
       let outer_loop_counter = outer_loop_counter + 1 in
 
       if outer_loop_counter >= 8 then (true, List.rev errors)
-      else begin
-        match find_formatting_element () with
+      else
+        begin match find_formatting_element () with
         | None -> (false, List.rev errors)
         | Some formatting_element ->
             if not formatting_element.is_open then begin
               Active.remove active_formatting_elements formatting_element;
               (true, List.rev ((l, `Unmatched_end_tag subject) :: errors))
             end
-            else begin
-              if not @@ Stack.target_in_scope stack formatting_element then begin
+            else
+              begin if not @@ Stack.target_in_scope stack formatting_element
+              then begin
                 (true, List.rev ((l, `Unmatched_end_tag subject) :: errors))
               end
               else begin
@@ -1071,8 +1072,8 @@ end = struct
 
                     outer_loop outer_loop_counter errors
               end
-            end
-      end
+              end
+        end
     in
 
     let current_node = Stack.require_current_element stack in
@@ -1197,11 +1198,10 @@ let parse ?depth_limit requested_context report tokens =
   and reset_mode () =
     let rec iterate last = function
       | [ e ] when (not last) && Context.the_context context <> `Document ->
-        begin
-          match Context.the_context context with
+          begin match Context.the_context context with
           | `Document -> assert false
           | `Fragment name -> iterate true [ { e with element_name = name } ]
-        end
+          end
       | { element_name = _, "select" } :: ancestors ->
           let rec iterate' = function
             | [] -> in_select_mode
@@ -1217,11 +1217,11 @@ let parse ?depth_limit requested_context report tokens =
       | { element_name = _, "caption" } :: _ -> in_caption_mode
       | { element_name = _, "colgroup" } :: _ -> in_column_group_mode
       | { element_name = _, "table" } :: _ -> in_table_mode
-      | { element_name = _, "template" } :: _ -> begin
-          match !template_insertion_modes with
+      | { element_name = _, "template" } :: _ ->
+          begin match !template_insertion_modes with
           | [] -> initial_mode (* This is an internal error, actually. *)
           | mode :: _ -> mode
-        end
+          end
       (* The next case corresponds to item 12 of "Resetting the insertion mode
          appropriately." It is commented out as deliberate deviation from the
          specification, because that makes parsing of fragments intended for
