@@ -95,7 +95,26 @@ let compare path oracle lite =
     Printf.eprintf "%s: Lite raised but oracle did not: %s\n" path exn;
     false
 
+let check_depth_limit () =
+  let html = "<div><span></div>" in
+  let oracle =
+    run (Oracle.parse ~depth_limit:1) (collect Markup.iter) html
+  in
+  let lite =
+    run
+      (fun report html ->
+        Markup_lite.parse_html ~report ~depth_limit:1 html)
+      (collect Markup_lite.iter) html
+  in
+  match oracle, lite with
+  | Raised _, Raised _ ->
+    if not (compare "depth-limit check" oracle lite) then exit 1
+  | _ ->
+    Printf.eprintf "depth-limit check: expected both parsers to raise\n";
+    exit 1
+
 let () =
+  check_depth_limit ();
   let directory =
     match Array.to_list Sys.argv with
     | [_; directory] -> directory
