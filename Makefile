@@ -21,12 +21,15 @@ test :
 	dune runtest
 
 LITE_TEST_EXE := _build/default/test/lite/lite_diff_corpus.exe
+LITE_WRITER_TEST_EXE := _build/default/test/lite/lite_writer_diff_corpus.exe
 LITE_TEST_CORPUS ?= big_tests
 
 .PHONY : test-lite
 test-lite :
-	dune build --profile release test/lite/lite_diff_corpus.exe
+	dune build --profile release test/lite/lite_diff_corpus.exe \
+	  test/lite/lite_writer_diff_corpus.exe
 	$(LITE_TEST_EXE) $(LITE_TEST_CORPUS)
+	$(LITE_WRITER_TEST_EXE) $(LITE_TEST_CORPUS)
 
 .PHONY : coverage
 coverage :
