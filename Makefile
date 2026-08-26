@@ -25,19 +25,23 @@ test :
 	dune runtest
 
 LITE_TEST_EXE := _build/default/test/lite/lite_diff_corpus.exe
+LITE_COUNT_TEST_EXE := _build/default/test/lite/lite_count_corpus.exe
 LITE_WRITER_TEST_EXE := _build/default/test/lite/lite_writer_diff_corpus.exe
 LITE_TEST_CORPUS ?= big_tests
 
 .PHONY : test-lite
 test-lite :
 	dune build --profile release test/lite/lite_diff_corpus.exe \
+	  test/lite/lite_count_corpus.exe \
 	  test/lite/lite_writer_diff_corpus.exe
 	$(LITE_TEST_EXE) $(LITE_TEST_CORPUS)
+	$(LITE_COUNT_TEST_EXE) $(LITE_TEST_CORPUS)
 	$(LITE_WRITER_TEST_EXE) $(LITE_TEST_CORPUS)
 
 LITE_AFL_EXE := _build-afl/default/test/fuzz/lite_diff_fuzz.exe
 LITE_AFL_OUTPUT ?= _fuzz/lite
 AFL_FUZZ ?= $(if $(wildcard _tools/AFLplusplus/afl-fuzz),_tools/AFLplusplus/afl-fuzz,afl-fuzz)
+AFL_WHATSUP ?= $(if $(wildcard _tools/AFLplusplus/afl-whatsup),_tools/AFLplusplus/afl-whatsup,afl-whatsup)
 J ?= 4
 
 .PHONY : test-lite-afl
@@ -72,6 +76,10 @@ test-lite-afl :
 	  i=$$((i + 1)); \
 	done; \
 	wait
+
+.PHONY : test-lite-afl-report
+test-lite-afl-report :
+	$(AFL_WHATSUP) -d $(LITE_AFL_OUTPUT)
 
 .PHONY : coverage
 coverage :
