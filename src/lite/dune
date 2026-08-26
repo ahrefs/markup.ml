@@ -1,3 +1,8 @@
+(env
+ (afl
+  (ocamlopt_flags
+   (:standard -afl-instrument -afl-inst-ratio 20))))
+
 (library
  (name markup_lite)
  (public_name markup.lite)

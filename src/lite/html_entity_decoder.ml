@@ -94,14 +94,14 @@ let decode text =
           add_utf_8 buffer text copied (index - copied);
           begin match value with
           | `Codepoint codepoint -> add_uchar buffer codepoint
-          | `Name name -> begin
-              match Hashtbl.find_opt (Lazy.force named_entities) name with
+          | `Name name ->
+              begin match Hashtbl.find_opt (Lazy.force named_entities) name with
               | Some (`One codepoint) -> add_uchar buffer codepoint
               | Some (`Two (first, second)) ->
                   add_uchar buffer first;
                   add_uchar buffer second
               | None -> Uutf.Buffer.add_utf_8 buffer replacement
-            end
+              end
           end;
           search after after
   and reference_end text start =

@@ -142,8 +142,8 @@ let write ?(escape_attribute = escape_attribute) ?(escape_text = escape_text)
                         loop throw ended)
               else loop throw ended
             end
-        | `End_element -> begin
-            match !open_elements with
+        | `End_element ->
+            begin match !open_elements with
             | [] -> loop throw ended
             | name :: rest ->
                 open_elements := rest;
@@ -151,7 +151,7 @@ let write ?(escape_attribute = escape_attribute) ?(escape_text = escape_text)
                 Buffer.add_string buffer name;
                 Buffer.add_char buffer '>';
                 loop throw ended
-          end
+            end
         | `Text strings ->
             if List.for_all (fun s -> String.length s = 0) strings then
               loop throw ended
