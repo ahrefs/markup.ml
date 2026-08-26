@@ -24,7 +24,10 @@ type t = {
   attrs : (string * string) list ref;
   directive : string ref;
   mutable line : int;
-  mutable pending : (int * Html_tokenizer.token) list;
+  tokens : Html_tokenizer.token array;
+  lines : int array;
+  mutable read : int;
+  mutable write : int;
   mutable finished : bool;
 }
 
@@ -37,12 +40,16 @@ let attributes attrs =
 let make_tag name attributes =
   {Token_tag.name; attributes; self_closing = false}
 
+let buffer_capacity = 128
+let maximum_transition_output = 3
+
 let emit scanner token =
-  scanner.pending <- scanner.pending @ [scanner.line, token]
+  scanner.tokens.(scanner.write) <- token;
+  scanner.lines.(scanner.write) <- scanner.line;
+  scanner.write <- scanner.write + 1
 
 let emit_many scanner tokens =
-  scanner.pending <-
-    scanner.pending @ List.map (fun token -> scanner.line, token) tokens
+  List.iter (emit scanner) tokens
 
 %%{
  machine htmlstream;
@@ -154,7 +161,10 @@ let create data =
    attrs = ref [];
    directive = ref "";
    line = 1;
-   pending = [];
+   tokens = Array.make buffer_capacity `EOF;
+   lines = Array.make buffer_capacity 1;
+   read = 0;
+   write = 0;
    finished = false}
 
 let run scanner =
@@ -170,7 +180,11 @@ let run scanner =
   let attrs = scanner.attrs in
   let directive = scanner.directive in
   pe := !eof;
-  let pause () = if !p < !eof then pe := !p + 1 in
+  let pause () =
+    if scanner.write >= buffer_capacity - maximum_transition_output &&
+        !p < !eof then
+      pe := !p + 1
+  in
   let substr = String.sub in
   let sub () =
     assert (!mark >= 0);
@@ -185,20 +199,27 @@ let run scanner =
   in
   %%write exec;
   if !p >= !eof then scanner.finished <- true
-  else if scanner.pending = [] then scanner.finished <- true
+  else if scanner.write = 0 then scanner.finished <- true
 
 let rec next scanner (_state : Html_tokenizer.state)
     (location : location_out) =
-  match scanner.pending with
-  | (line, token)::rest ->
-    scanner.pending <- rest;
-    location.line <- line;
+  if scanner.read < scanner.write then begin
+    let index = scanner.read in
+    let token = scanner.tokens.(index) in
+    location.line <- scanner.lines.(index);
     location.column <- -1;
+    scanner.tokens.(index) <- `EOF;
+    scanner.read <- index + 1;
     token
-  | [] when scanner.finished ->
+  end
+  else if scanner.finished then begin
     location.line <- scanner.line;
     location.column <- -1;
     `EOF
-  | [] ->
+  end
+  else begin
+    scanner.read <- 0;
+    scanner.write <- 0;
     run scanner;
     next scanner _state location
+  end
