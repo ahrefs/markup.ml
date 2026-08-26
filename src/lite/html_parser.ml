@@ -1094,7 +1094,7 @@ let parse ?depth_limit requested_context report tokens =
   let token_location = Token_source.location () in
   let next_token tokens =
     let token = Token_source.next tokens !tokenizer_state token_location in
-    (token_location.line, token_location.column), token
+    ((token_location.line, token_location.column), token)
   in
   let push = Token_source.push in
   let set_tokenizer_state state = tokenizer_state := state in
@@ -1447,27 +1447,27 @@ let parse ?depth_limit requested_context report tokens =
   (* 8.2.5. *)
   and dispatch tokens rules =
     match next_token tokens with
-    | ((_, t) as v) ->
-      let foreign =
-        match (Stack.adjusted_current_element context open_elements, t) with
-        | None, _ -> false
-        | Some { element_name = `HTML, _ }, _ -> false
-        | Some { element_name }, `Start { name }
-          when Foreign.is_mathml_text_integration_point element_name
-               && name <> "mglyph" && name <> "malignmark" ->
-            false
-        | ( Some { element_name = `MathML, "annotation-xml" },
-            `Start { name = "svg" } ) ->
-            false
-        | Some { is_html_integration_point = true }, `Start _ -> false
-        | Some { is_html_integration_point = true }, `Char _ -> false
-        | Some { is_html_integration_point = true }, `String _ -> false
-        | _, `EOF -> false
-        | _ -> true
-      in
+    | (_, t) as v ->
+        let foreign =
+          match (Stack.adjusted_current_element context open_elements, t) with
+          | None, _ -> false
+          | Some { element_name = `HTML, _ }, _ -> false
+          | Some { element_name }, `Start { name }
+            when Foreign.is_mathml_text_integration_point element_name
+                 && name <> "mglyph" && name <> "malignmark" ->
+              false
+          | ( Some { element_name = `MathML, "annotation-xml" },
+              `Start { name = "svg" } ) ->
+              false
+          | Some { is_html_integration_point = true }, `Start _ -> false
+          | Some { is_html_integration_point = true }, `Char _ -> false
+          | Some { is_html_integration_point = true }, `String _ -> false
+          | _, `EOF -> false
+          | _ -> true
+        in
 
-      if not foreign then rules v
-      else foreign_content !current_mode (fun () -> rules v) v
+        if not foreign then rules v
+        else foreign_content !current_mode (fun () -> rules v) v
     | exception exn -> !throw exn
   (* 8.2.5.4.1. *)
   and initial_mode () =
@@ -2014,8 +2014,7 @@ let parse ?depth_limit requested_context report tokens =
             match next_token tokens with
             | _, `Char 0x000A -> text_mode mode
             | loc, `String s when String.starts_with ~prefix:"\n" s ->
-                push tokens
-                  (loc, `String (String.sub s 1 (String.length s - 1)));
+                push tokens (loc, `String (String.sub s 1 (String.length s - 1)));
                 text_mode mode
             | v ->
                 push tokens v;
