@@ -51,6 +51,27 @@ let write_with_lite signals =
   Markup_lite.write_html buffer (Markup.of_list signals);
   Buffer.contents buffer
 
+let check_escape_regressions () =
+  let cases =
+    [ "ASCII-safe", [`Text ["plain text"]];
+      "ASCII escapes", [`Text ["<&>"]];
+      "attribute escapes",
+        [`Start_element ((Markup.Ns.html, "p"), [("", "title"), "a&\"b"]);
+         `End_element];
+      "UTF-8 and non-breaking space", [`Text ["été\xC2\xA0東京"]];
+      "malformed UTF-8", [`Text ["before\xFFafter"]] ]
+  in
+  List.iter (fun (name, signals) ->
+    let markup = write_with_markup signals in
+    let lite = write_with_lite signals in
+    if markup <> lite then begin
+      Printf.eprintf
+        "%s escape regression:\n  Markup: %S\n  Lite:   %S\n"
+        name markup lite;
+      exit 1
+    end)
+    cases
+
 let check_buffer_api () =
   let wrap prefix buffer text =
     Buffer.add_string buffer prefix;
@@ -102,6 +123,7 @@ let difference left right =
       (context left) (context right)
 
 let () =
+  check_escape_regressions ();
   check_buffer_api ();
   let directory =
     match Array.to_list Sys.argv with

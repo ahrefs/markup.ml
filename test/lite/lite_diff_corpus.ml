@@ -95,6 +95,25 @@ let compare path oracle lite =
     Printf.eprintf "%s: Lite raised but oracle did not: %s\n" path exn;
     false
 
+let check_case name html =
+  let oracle = run Oracle.parse (collect Markup.iter) html in
+  let lite =
+    run
+      (fun report html -> Markup_lite.parse_html ~report html)
+      (collect Markup_lite.iter) html
+  in
+  if not (compare name oracle lite) then exit 1
+
+let check_decoder_cases () =
+  [ "decoder empty", "";
+    "decoder ASCII without ampersand", "<p>plain ASCII text</p>";
+    "decoder UTF-8 without ampersand", "<p title=\"été 東京\">naïve ✓</p>";
+    "decoder attributes without ampersand",
+      "<div data-value=\"${value}\">x</div>";
+    "decoder complete references", "<p title=\"a&amp;b\">&lt;&#62;&#x3e;</p>";
+    "decoder incomplete references", "<p>a& b&amp b&#12 b&#x2a</p>" ]
+  |> List.iter (fun (name, html) -> check_case name html)
+
 let check_depth_limit () =
   let html = "<div><span></div>" in
   let oracle =
@@ -114,6 +133,7 @@ let check_depth_limit () =
     exit 1
 
 let () =
+  check_decoder_cases ();
   check_depth_limit ();
   let directory =
     match Array.to_list Sys.argv with
