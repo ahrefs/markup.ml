@@ -3,7 +3,14 @@
 
 open Common
 
-let escape_attribute buffer s =
+let rec ascii_attribute_safe s index =
+  if index = String.length s then true
+  else
+    match s.[index] with
+    | '&' | '"' | '\x80' .. '\xFF' -> false
+    | _ -> ascii_attribute_safe s (index + 1)
+
+let escape_attribute_slow ~into:buffer s =
   Uutf.String.fold_utf_8
     (fun () _ -> function
       | `Malformed _ -> ()
@@ -15,7 +22,18 @@ let escape_attribute buffer s =
           | c -> add_utf_8 buffer c))
     () s
 
-let escape_text buffer s =
+let escape_attribute buffer s =
+  if ascii_attribute_safe s 0 then Buffer.add_string buffer s
+  else escape_attribute_slow ~into:buffer s
+
+let rec ascii_text_safe s index =
+  if index = String.length s then true
+  else
+    match s.[index] with
+    | '&' | '<' | '>' | '\x80' .. '\xFF' -> false
+    | _ -> ascii_text_safe s (index + 1)
+
+let escape_text_slow ~into:buffer s =
   Uutf.String.fold_utf_8
     (fun () _ -> function
       | `Malformed _ -> ()
@@ -27,6 +45,10 @@ let escape_text buffer s =
           | 0x003E -> Buffer.add_string buffer "&gt;"
           | c -> add_utf_8 buffer c))
     () s
+
+let escape_text buffer s =
+  if ascii_text_safe s 0 then Buffer.add_string buffer s
+  else escape_text_slow ~into:buffer s
 
 let void_elements =
   [
