@@ -34,3 +34,10 @@ val parse_html :
   string -> (signal, sync) stream
 
 val iter : ('a -> unit) -> ('a, sync) stream -> unit
+
+val write_html :
+  ?escape_attribute:(Buffer.t -> string -> unit) ->
+  ?escape_text:(Buffer.t -> string -> unit) ->
+  Buffer.t ->
+  (signal, sync) stream ->
+  unit
