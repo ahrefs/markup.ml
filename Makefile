@@ -2,6 +2,10 @@
 build :
 	dune build -p markup,markup-lwt
 
+.PHONY : format
+format :
+	dune build @src/lite/fmt --auto-promote || dune build @src/lite/fmt
+
 # This is not part of the ordinary build process. The output file, entities.ml,
 # is checked into git.
 .PHONY : entities
