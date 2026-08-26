@@ -10,6 +10,11 @@
  (libraries containers lite_test_oracle markup markup.lite unix))
 
 (executable
+ (name lite_count_corpus)
+ (modules lite_count_corpus)
+ (libraries containers lite_test_oracle markup markup.lite unix))
+
+(executable
  (name lite_writer_diff_corpus)
  (modules lite_writer_diff_corpus)
  (libraries containers markup markup.lite unix))
