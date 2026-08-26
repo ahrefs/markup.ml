@@ -32,7 +32,7 @@ type t = {
 }
 
 let decode text =
-  try Devkit.Web.htmldecode text with _ -> text
+  try Html_entity_decoder.decode text with _ -> text
 
 let attributes attrs =
   List.map (fun (name, value) -> name, decode value) attrs

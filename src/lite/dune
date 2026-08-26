@@ -5,6 +5,7 @@
  (private_modules
   common
   error
+  html_entity_decoder
   html_parser
   html_tokenizer
   kstream
@@ -12,6 +13,6 @@
   ragel_html_tokenizer
   text
   token_source)
- (libraries devkit markup.common uutf)
+ (libraries markup.common markup.entities uutf)
  (flags
   (:standard -w -9)))
