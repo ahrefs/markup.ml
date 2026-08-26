@@ -1,0 +1,4 @@
+(env
+ (afl
+  (flags
+   (:standard -warn-error -A))))
