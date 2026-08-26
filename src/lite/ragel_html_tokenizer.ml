@@ -24,7 +24,10 @@ type t = {
 	attrs : (string * string) list ref;
 	directive : string ref;
 	mutable line : int;
-	mutable pending : (int * Html_tokenizer.token) list;
+	tokens : Html_tokenizer.token array;
+	lines : int array;
+	mutable read : int;
+	mutable write : int;
 	mutable finished : bool;
 }
 
@@ -37,12 +40,16 @@ List.map (fun (name, value) -> name, decode value) attrs
 let make_tag name attributes =
 {Token_tag.name; attributes; self_closing = false}
 
+let buffer_capacity = 128
+let maximum_transition_output = 3
+
 let emit scanner token =
-scanner.pending <- scanner.pending @ [scanner.line, token]
+scanner.tokens.(scanner.write) <- token;
+scanner.lines.(scanner.write) <- scanner.line;
+scanner.write <- scanner.write + 1
 
 let emit_many scanner tokens =
-scanner.pending <-
-scanner.pending @ List.map (fun token -> scanner.line, token) tokens
+List.iter (emit scanner) tokens
 
 let _htmlstream_trans_keys : int array = [|
 1; 10; 1; 10; 0; 22; 1; 1; 1; 22; 1; 6; 1; 6; 1; 6; 1; 12; 1; 22; 0; 22; 0; 22; 0; 22; 0; 22; 0; 12; 0; 12; 1; 10; 1; 3; 1; 3; 0; 22; 1; 12; 1; 5; 1; 5; 0; 22; 0; 22; 0; 22; 0; 22; 0; 12; 1; 10; 0; 12; 0; 12; 1; 10; 1; 3; 1; 3; 0; 22; 1; 5; 1; 5; 0; 22; 1; 12; 1; 22; 1; 22; 1; 10; 1; 10; 0; 10; 0; 20; 1; 14; 1; 19; 1; 16; 1; 18; 1; 21; 0; 12; 1; 1; 1; 10; 1; 10; 0; 10; 0; 20; 1; 21; 1; 22; 1; 17; 1; 15; 0; 12; 1; 1; 1; 10; 1; 10; 0; 10; 0; 21; 1; 16; 1; 21; 1; 17; 1; 15; 0; 12; 1; 1; 1; 12; 1; 1; 0 ;
@@ -95,7 +102,10 @@ let length = String.length data in
 	attrs = ref [];
 	directive = ref "";
 	line = 1;
-	pending = [];
+	tokens = Array.make buffer_capacity `EOF;
+	lines = Array.make buffer_capacity 1;
+	read = 0;
+	write = 0;
 	finished = false}
 
 let run scanner =
@@ -111,7 +121,11 @@ let key = scanner.key in
 let attrs = scanner.attrs in
 let directive = scanner.directive in
 pe := !eof;
-let pause () = if !p < !eof then pe := !p + 1 in
+let pause () =
+if scanner.write >= buffer_capacity - maximum_transition_output &&
+!p < !eof then
+pe := !p + 1
+in
 let substr = String.sub in
 let sub () =
 assert (!mark >= 0);
@@ -803,20 +817,27 @@ begin
 
 end;
 if !p >= !eof then scanner.finished <- true
-else if scanner.pending = [] then scanner.finished <- true
+else if scanner.write = 0 then scanner.finished <- true
 
 let rec next scanner (_state : Html_tokenizer.state)
 (location : location_out) =
-match scanner.pending with
-| (line, token)::rest ->
-scanner.pending <- rest;
-location.line <- line;
-location.column <- -1;
-token
-| [] when scanner.finished ->
-location.line <- scanner.line;
-location.column <- -1;
-`EOF
-| [] ->
-run scanner;
-next scanner _state location
+if scanner.read < scanner.write then begin
+	let index = scanner.read in
+	let token = scanner.tokens.(index) in
+	location.line <- scanner.lines.(index);
+	location.column <- -1;
+	scanner.tokens.(index) <- `EOF;
+	scanner.read <- index + 1;
+	token
+end
+else if scanner.finished then begin
+	location.line <- scanner.line;
+	location.column <- -1;
+	`EOF
+end
+else begin
+	scanner.read <- 0;
+	scanner.write <- 0;
+	run scanner;
+	next scanner _state location
+end
