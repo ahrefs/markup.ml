@@ -8,4 +8,4 @@ val parse :
   [< `Document | `Fragment of string ] ->
   Error.parse_handler ->
   Token_source.t ->
-    (location * signal) Kstream.t
+  (location * signal) Kstream.t
