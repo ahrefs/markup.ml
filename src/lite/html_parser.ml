@@ -1092,13 +1092,9 @@ let parse ?depth_limit requested_context report tokens =
   let context = Context.uninitialized () in
   let tokenizer_state = ref `Data in
   let token_location = Token_source.location () in
-  let next tokens throw _empty k =
-    match Token_source.next tokens !tokenizer_state token_location with
-    | token -> k ((token_location.line, token_location.column), token)
-    | exception exn -> throw exn
-  in
-  let next_expected tokens throw k =
-    next tokens throw (fun () -> throw (Failure "stream empty")) k
+  let next_token tokens =
+    let token = Token_source.next tokens !tokenizer_state token_location in
+    (token_location.line, token_location.column), token
   in
   let push = Token_source.push in
   let set_tokenizer_state state = tokenizer_state := state in
@@ -1450,7 +1446,8 @@ let parse ?depth_limit requested_context report tokens =
     reopen to_reopen
   (* 8.2.5. *)
   and dispatch tokens rules =
-    next tokens !throw (fun () -> !ended ()) begin fun ((_, t) as v) ->
+    match next_token tokens with
+    | ((_, t) as v) ->
       let foreign =
         match (Stack.adjusted_current_element context open_elements, t) with
         | None, _ -> false
@@ -1471,7 +1468,7 @@ let parse ?depth_limit requested_context report tokens =
 
       if not foreign then rules v
       else foreign_content !current_mode (fun () -> rules v) v
-      end
+    | exception exn -> !throw exn
   (* 8.2.5.4.1. *)
   and initial_mode () =
     dispatch tokens begin function
@@ -1812,15 +1809,16 @@ let parse ?depth_limit requested_context report tokens =
             push_and_emit l t (fun () ->
                 (* https://html.spec.whatwg.org/multipage/grouping-content.html#the-pre-element *)
                 (* In the HTML syntax, a leading newline character immediately following the pre element start tag is stripped. *)
-                next_expected tokens !throw (function
-                  | _, `Char 0x000A -> mode ()
-                  | loc, `String s when String.starts_with ~prefix:"\n" s ->
-                      push tokens
-                        (loc, `String (String.sub s 1 (String.length s - 1)));
-                      mode ()
-                  | v ->
-                      push tokens v;
-                      mode ())))
+                match next_token tokens with
+                | _, `Char 0x000A -> mode ()
+                | loc, `String s when String.starts_with ~prefix:"\n" s ->
+                    push tokens
+                      (loc, `String (String.sub s 1 (String.length s - 1)));
+                    mode ()
+                | v ->
+                    push tokens v;
+                    mode ()
+                | exception exn -> !throw exn))
     | l, `Start ({ name = "form" } as t) ->
         if
           !form_element_pointer <> None
@@ -2013,15 +2011,16 @@ let parse ?depth_limit requested_context report tokens =
         frameset_ok := false;
         push_and_emit l t (fun () ->
             set_tokenizer_state `RCDATA;
-            next_expected tokens !throw (function
-              | _, `Char 0x000A -> text_mode mode
-              | loc, `String s when String.starts_with ~prefix:"\n" s ->
-                  push tokens
-                    (loc, `String (String.sub s 1 (String.length s - 1)));
-                  text_mode mode
-              | v ->
-                  push tokens v;
-                  text_mode mode))
+            match next_token tokens with
+            | _, `Char 0x000A -> text_mode mode
+            | loc, `String s when String.starts_with ~prefix:"\n" s ->
+                push tokens
+                  (loc, `String (String.sub s 1 (String.length s - 1)));
+                text_mode mode
+            | v ->
+                push tokens v;
+                text_mode mode
+            | exception exn -> !throw exn)
     | l, `Start { name = "xmp" } ->
         frameset_ok := false;
         close_current_p_element l (fun () ->
