@@ -44,3 +44,6 @@ let iter f stream =
   |> Markup_common.Stream.Private.of_stream
   |> Kstream.iter (fun value _ continue -> f value; continue ())
   |> fun iterate -> iterate raise ignore
+
+let write_html ?escape_attribute ?escape_text buffer signals =
+  Html_writer.write ?escape_attribute ?escape_text buffer signals

@@ -8,6 +8,7 @@
   html_entity_decoder
   html_parser
   html_tokenizer
+  html_writer
   kstream
   namespace
   ragel_html_tokenizer
