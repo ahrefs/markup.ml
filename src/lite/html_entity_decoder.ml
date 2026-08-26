@@ -81,7 +81,7 @@ let hexadecimal_value = function
   | 'a' .. 'f' as c -> Char.code c - Char.code 'a' + 10
   | _ -> assert false
 
-let decode text =
+let decode_references text =
   let length = String.length text in
   let buffer = Buffer.create length in
   let rec search copied index =
@@ -140,3 +140,6 @@ let decode text =
   in
   search 0 0;
   Buffer.contents buffer
+
+let decode text =
+  if String.contains text '&' then decode_references text else text
