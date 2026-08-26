@@ -35,6 +35,44 @@ test-lite :
 	$(LITE_TEST_EXE) $(LITE_TEST_CORPUS)
 	$(LITE_WRITER_TEST_EXE) $(LITE_TEST_CORPUS)
 
+LITE_AFL_EXE := _build-afl/default/test/fuzz/lite_diff_fuzz.exe
+LITE_AFL_OUTPUT ?= _fuzz/lite
+AFL_FUZZ ?= $(if $(wildcard _tools/AFLplusplus/afl-fuzz),_tools/AFLplusplus/afl-fuzz,afl-fuzz)
+J ?= 4
+
+.PHONY : test-lite-afl
+test-lite-afl :
+	@command -v $(AFL_FUZZ) >/dev/null || { \
+	  echo "$(AFL_FUZZ) not found; install AFL or set AFL_FUZZ" >&2; exit 1; }
+	dune build --build-dir _build-afl --profile afl \
+	  test/fuzz/lite_diff_fuzz.exe
+	@set -eu; \
+	case "$(J)" in ''|*[!0-9]*|0) echo "J must be a positive integer" >&2; exit 2;; esac; \
+	mkdir -p $(LITE_AFL_OUTPUT); \
+	pids=''; \
+	cleanup () { \
+	  trap - EXIT INT TERM; \
+	  if test -n "$$pids"; then kill $$pids 2>/dev/null || true; fi; \
+	  wait 2>/dev/null || true; \
+	}; \
+	trap cleanup EXIT INT TERM; \
+	i=0; \
+	while test $$i -lt $(J); do \
+	  id=$$(printf 'fuzzer%02d' $$i); \
+	  if test $$i -eq 0; then role=-M; else role=-S; fi; \
+	  input=test/fuzz/seeds; \
+	  if test -d $(LITE_AFL_OUTPUT)/$$id/queue; then input=-; fi; \
+	  echo "starting AFL worker $$id"; \
+	  AFL_NO_UI=1 AFL_NO_AFFINITY=1 AFL_SKIP_CPUFREQ=1 \
+	    AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1 \
+	    $(AFL_FUZZ) -i $$input -o $(LITE_AFL_OUTPUT) \
+	      -x test/fuzz/html.dict $$role $$id -- $(LITE_AFL_EXE) \
+	      >$(LITE_AFL_OUTPUT)/$$id.log 2>&1 & \
+	  pids="$$pids $$!"; \
+	  i=$$((i + 1)); \
+	done; \
+	wait
+
 .PHONY : coverage
 coverage :
 	find . -name '*.coverage' | xargs rm -f
