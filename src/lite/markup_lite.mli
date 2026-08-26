@@ -33,6 +33,7 @@ val signal_to_string : [< signal ] -> string
 val parse_html :
   ?report:(location -> Error.t -> unit) ->
   ?context:[ `Document | `Fragment of string ] ->
+  ?depth_limit:int ->
   string ->
   (signal, sync) stream
 

@@ -29,14 +29,15 @@ module Ns = Markup_common.Ns
 let signal_to_string = Markup_common.signal_to_string
 
 let parse_html ?(report = fun _ _ -> ())
-    ?(context : [ `Document | `Fragment of string ] = `Document) html =
+    ?(context : [ `Document | `Fragment of string ] = `Document) ?depth_limit
+    html =
   let report location error throw resume =
     match report location error with
     | () -> resume ()
     | exception exn -> throw exn
   in
   let tokens = Token_source.create html in
-  Html_parser.parse context report tokens
+  Html_parser.parse ?depth_limit context report tokens
   |> Kstream.map (fun (_, signal) _ continue -> continue signal)
   |> Markup_common.Stream.Private.to_stream
   |> fun stream -> (stream : (signal, sync) stream)
