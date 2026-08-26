@@ -1,6 +1,31 @@
-let usage program =
-  Printf.eprintf "Usage: %s DIRECTORY\n" program;
-  exit 2
+type parser_selection = Both | Oracle | Lite
+
+let arguments () =
+  let selection = ref Both in
+  let directories = ref [] in
+  let parser = function
+    | "both" -> selection := Both
+    | "oracle" -> selection := Oracle
+    | "lite" -> selection := Lite
+    | _ -> assert false
+  in
+  let usage =
+    Printf.sprintf "Usage: %s [--parser both|oracle|lite] DIRECTORY"
+      Sys.argv.(0)
+  in
+  let specs =
+    [ ( "--parser",
+        Arg.Symbol ([ "both"; "oracle"; "lite" ], parser),
+        " Select which parser to run (default: both)" ) ]
+  in
+  Arg.parse specs
+    (fun directory -> directories := directory :: !directories)
+    usage;
+  match !directories with
+  | [ directory ] -> (!selection, directory)
+  | _ ->
+      Arg.usage specs usage;
+      exit 2
 
 let html_files directory =
   let files = CCIO.File.read_dir ~recurse:true (CCIO.File.make directory) in
@@ -81,17 +106,30 @@ let print_stats name stats =
     name stats.wall_seconds stats.minor_words stats.major_words
     stats.promoted_words
 
-let () =
-  let directory =
-    match Array.to_list Sys.argv with
-    | [ _; directory ] -> directory
-    | _ -> usage Sys.argv.(0)
-  in
-  let files = html_files directory in
-  if files = [] then begin
-    Printf.eprintf "No .html files found under: %s\n" directory;
-    exit 2
-  end;
+let run_one name count_parser files =
+  let stats = empty_stats () in
+  let bytes = ref 0 in
+  let signals = ref 0 in
+  let exceptions = ref 0 in
+  List.iteri
+    (fun index path ->
+      let html = CCIO.File.read_exn (CCIO.File.make path) in
+      bytes := !bytes + String.length html;
+      begin match measure stats (fun () -> count_parser html) with
+      | Count count -> signals := !signals + count
+      | Raised _ -> incr exceptions
+      end;
+      if (index + 1) mod 100 = 0 then
+        Printf.eprintf "checked %d/%d\r%!" (index + 1) (List.length files))
+    files;
+  Printf.eprintf "checked %d/%d\n%!" (List.length files) (List.length files);
+  Printf.printf "files=%d bytes=%d signals=%d exceptions=%d\n"
+    (List.length files) !bytes !signals !exceptions;
+  print_stats (name ^ " count") stats;
+  Printf.printf "OK: %d HTML files consumed with %s\n%!" (List.length files)
+    name
+
+let run_both files =
   let failures = ref 0 in
   let bytes = ref 0 in
   let signals = ref 0 in
@@ -131,3 +169,15 @@ let () =
   end;
   Printf.printf "OK: %d HTML files had equal signal counts\n%!"
     (List.length files)
+
+let () =
+  let selection, directory = arguments () in
+  let files = html_files directory in
+  if files = [] then begin
+    Printf.eprintf "No .html files found under: %s\n" directory;
+    exit 2
+  end;
+  match selection with
+  | Both -> run_both files
+  | Oracle -> run_one "oracle" count_oracle files
+  | Lite -> run_one "lite" count_lite files
