@@ -32,7 +32,8 @@ let tokenize html : (Markup.location * Markup.Internals.token) list =
   emit `EOF;
   List.rev !tokens
 
-let parse ?depth_limit report html =
+let parse ?depth_limit
+    ?(context : [ `Document | `Fragment of string ] = `Document) report html =
   html |> tokenize
-  |> Markup.Internals.parse_tokens ?depth_limit ~report ~context:`Document
+  |> Markup.Internals.parse_tokens ?depth_limit ~report ~context
   |> Markup.signals
