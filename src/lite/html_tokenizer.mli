@@ -4,12 +4,12 @@
 open Common
 
 type token =
-  [ `Doctype of doctype
-  | `Start of Token_tag.t
-  | `End of Token_tag.t
-  | `Char of int
-  | `String of string
-  | `Comment of string
-  | `EOF ]
+  | Doctype of doctype
+  | Start of Token_tag.t
+  | End of Token_tag.t
+  | Char of int
+  | String of string
+  | Comment of string
+  | EOF
 
 type state = [ `Data | `RCDATA | `RAWTEXT | `Script_data | `PLAINTEXT ]
