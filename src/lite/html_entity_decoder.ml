@@ -70,14 +70,15 @@ let add_utf_8 buffer text position length =
       | `Malformed _ -> invalid_arg "malformed UTF-8")
     () text
 
-let is_letter = function 'A' .. 'Z' | 'a' .. 'z' -> true | _ -> false
-let is_decimal = function '0' .. '9' -> true | _ -> false
+let[@inline] is_letter = function 'A' .. 'Z' | 'a' .. 'z' -> true | _ -> false
+let[@inline] is_decimal = function '0' .. '9' -> true | _ -> false
+let[@inline] is_alphanumeric c = is_letter c || is_decimal c
 
-let is_hexadecimal = function
+let[@inline] is_hexadecimal = function
   | '0' .. '9' | 'A' .. 'F' | 'a' .. 'f' -> true
   | _ -> false
 
-let hexadecimal_value = function
+let[@inline] hexadecimal_value = function
   | '0' .. '9' as c -> Char.code c - Char.code '0'
   | 'A' .. 'F' as c -> Char.code c - Char.code 'A' + 10
   | 'a' .. 'f' as c -> Char.code c - Char.code 'a' + 10
@@ -109,11 +110,12 @@ let decode_references text =
   and reference_end text start =
     if start >= length then None
     else if text.[start] = '#' then numeric_reference text (start + 1)
-    else
-      let finish = consume_while text start is_letter in
-      if finish > start && finish < length && text.[finish] = ';' then
+    else if is_letter text.[start] then
+      let finish = consume_while text (start + 1) is_alphanumeric in
+      if finish < length && text.[finish] = ';' then
         Some (finish + 1, Name (String.sub text start (finish - start)))
       else None
+    else None
   and numeric_reference text start =
     if start >= length then None
     else if text.[start] = 'x' || text.[start] = 'X' then
