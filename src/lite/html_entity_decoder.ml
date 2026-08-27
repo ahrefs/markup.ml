@@ -1,174 +1,132 @@
 (* This file is part of Markup.ml, released under the MIT license. See
    LICENSE.md for details, or visit https://github.com/aantron/markup.ml. *)
 
-let replacement = Uchar.of_int 0xFFFD
+open Common
+module Trie = Markup_entities.Trie
 
-exception Undecodable_chunk
-
-type reference = Codepoint of int | Name of string
-type entity = One of int | Two of int * int
-
-let html4_names =
-  "lt gt amp quot apos nbsp iexcl cent pound curren yen brvbar sect uml copy \
-   ordf laquo not shy reg macr deg plusmn sup2 sup3 acute micro para middot \
-   cedil sup1 ordm raquo frac14 frac12 frac34 iquest Agrave Aacute Acirc \
-   Atilde Auml Aring AElig Ccedil Egrave Eacute Ecirc Euml Igrave Iacute Icirc \
-   Iuml ETH Ntilde Ograve Oacute Ocirc Otilde Ouml times Oslash Ugrave Uacute \
-   Ucirc Uuml Yacute THORN szlig agrave aacute acirc atilde auml aring aelig \
-   ccedil egrave eacute ecirc euml igrave iacute icirc iuml eth ntilde ograve \
-   oacute ocirc otilde ouml divide oslash ugrave uacute ucirc uuml yacute \
-   thorn yuml fnof Alpha Beta Gamma Delta Epsilon Zeta Eta Theta Iota Kappa \
-   Lambda Mu Nu Xi Omicron Pi Rho Sigma Tau Upsilon Phi Chi Psi Omega alpha \
-   beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron \
-   pi rho sigmaf sigma tau upsilon phi chi psi omega thetasym upsih piv bull \
-   hellip prime Prime oline frasl weierp image real trade alefsym larr uarr \
-   rarr darr harr crarr lArr uArr rArr dArr hArr forall part exist empty nabla \
-   isin notin ni prod sum minus lowast radic prop infin ang and or cap cup int \
-   there4 sim cong asymp ne equiv le ge sub sup nsub sube supe oplus otimes \
-   perp sdot lceil rceil lfloor rfloor lang rang loz spades clubs hearts diams \
-   OElig oelig Scaron scaron Yuml circ tilde ensp emsp thinsp zwnj zwj lrm rlm \
-   ndash mdash lsquo rsquo sbquo ldquo rdquo bdquo dagger Dagger permil lsaquo \
-   rsaquo euro"
-
-module Str_tbl = Hashtbl.Make (struct
-  type t = string
-
-  let equal = String.equal
-  let hash = Hashtbl.hash
-end)
-
-let split_words s =
-  let rec scan start index words =
-    if index = String.length s then
-      if start = index then List.rev words
-      else List.rev (String.sub s start (index - start) :: words)
-    else if s.[index] = ' ' then
-      if start = index then scan (index + 1) (index + 1) words
-      else
-        scan (index + 1) (index + 1)
-          (String.sub s start (index - start) :: words)
-    else scan start (index + 1) words
-  in
-  scan 0 0 []
-
-let named_entities =
+let named_entity_trie =
   lazy
-    (let names = Str_tbl.create 253 in
-     List.iter (fun name -> Str_tbl.add names name ()) (split_words html4_names);
-     let entities = Str_tbl.create 253 in
-     Array.iter
-       (fun (name, value) ->
-         if Str_tbl.mem names name then
-           let value =
-             match value with
-             | `One codepoint -> One codepoint
-             | `Two (first, second) -> Two (first, second)
-           in
-           Str_tbl.replace entities name value)
-       Markup_entities.Entities.entities;
-     (* HTML5 changed [lang] and [rang], and its legacy no-semicolon [sup1]
-        entry collides with [sup] in the generated table. *)
-     Str_tbl.replace entities "sup" (One 0x2283);
-     Str_tbl.replace entities "lang" (One 0x2329);
-     Str_tbl.replace entities "rang" (One 0x232A);
-     entities)
+    (Array.fold_left
+       (fun trie (name, characters) -> Trie.add name characters trie)
+       (Trie.create ()) Markup_entities.Entities.entities)
 
-let is_undecodable codepoint =
-  (codepoint >= 0xD800 && codepoint <= 0xDFFF)
-  || codepoint = 0xFFFE || codepoint = 0xFFFF
+let replace_windows_1252_entity = function
+  | 0x80 -> 0x20AC
+  | 0x82 -> 0x201A
+  | 0x83 -> 0x0192
+  | 0x84 -> 0x201E
+  | 0x85 -> 0x2026
+  | 0x86 -> 0x2020
+  | 0x87 -> 0x2021
+  | 0x88 -> 0x02C6
+  | 0x89 -> 0x2030
+  | 0x8A -> 0x0160
+  | 0x8B -> 0x2039
+  | 0x8C -> 0x0152
+  | 0x8E -> 0x017D
+  | 0x91 -> 0x2018
+  | 0x92 -> 0x2019
+  | 0x93 -> 0x201C
+  | 0x94 -> 0x201D
+  | 0x95 -> 0x2022
+  | 0x96 -> 0x2013
+  | 0x97 -> 0x2014
+  | 0x98 -> 0x02DC
+  | 0x99 -> 0x2122
+  | 0x9A -> 0x0161
+  | 0x9B -> 0x203A
+  | 0x9C -> 0x0153
+  | 0x9E -> 0x017E
+  | 0x9F -> 0x0178
+  | c -> c
 
-let add_uchar buffer codepoint =
-  if is_undecodable codepoint then raise Undecodable_chunk;
-  let uchar =
-    try Uchar.of_int codepoint with Invalid_argument _ -> replacement
-  in
-  Uutf.Buffer.add_utf_8 buffer uchar
+let[@inline] is_decimal c = is_digit (Char.code c)
+let[@inline] is_hexadecimal c = is_hex_digit (Char.code c)
+let[@inline] is_alphanumeric_char c = is_alphanumeric (Char.code c)
 
-let add_utf_8 buffer text position length =
-  Uutf.String.fold_utf_8 ~pos:position ~len:length
-    (fun () _ -> function
-      | `Uchar uchar ->
-          if is_undecodable (Uchar.to_int uchar) then raise Undecodable_chunk;
-          Uutf.Buffer.add_utf_8 buffer uchar
-      | `Malformed _ -> invalid_arg "malformed UTF-8")
-    () text
-
-let[@inline] is_letter = function 'A' .. 'Z' | 'a' .. 'z' -> true | _ -> false
-let[@inline] is_decimal = function '0' .. '9' -> true | _ -> false
-let[@inline] is_alphanumeric c = is_letter c || is_decimal c
-
-let[@inline] is_hexadecimal = function
-  | '0' .. '9' | 'A' .. 'F' | 'a' .. 'f' -> true
-  | _ -> false
-
-let[@inline] hexadecimal_value = function
-  | '0' .. '9' as c -> Char.code c - Char.code '0'
-  | 'A' .. 'F' as c -> Char.code c - Char.code 'A' + 10
-  | 'a' .. 'f' as c -> Char.code c - Char.code 'a' + 10
-  | _ -> assert false
-
-let decode_references text =
+let decode_references in_attribute text =
   let length = String.length text in
   let buffer = Buffer.create length in
+  let numeric_value ~hexadecimal digits finish =
+    let digits = String.sub text digits (finish - digits) in
+    let value =
+      int_of_string_opt (if hexadecimal then "0x" ^ digits else digits)
+    in
+    match value with
+    | None -> u_rep
+    | Some value ->
+        let value = replace_windows_1252_entity value in
+        if value = 0 || not (is_scalar value) then u_rep else value
+  in
   let rec search copied index =
-    if index >= length then add_utf_8 buffer text copied (length - copied)
+    if index >= length then
+      Buffer.add_substring buffer text copied (length - copied)
     else if text.[index] <> '&' then search copied (index + 1)
     else
-      match reference_end text (index + 1) with
+      match reference (index + 1) with
       | None -> search copied (index + 1)
       | Some (after, value) ->
-          add_utf_8 buffer text copied (index - copied);
+          Buffer.add_substring buffer text copied (index - copied);
           begin match value with
-          | Codepoint codepoint -> add_uchar buffer codepoint
-          | Name name ->
-              begin match Str_tbl.find_opt (Lazy.force named_entities) name with
-              | Some (One codepoint) -> add_uchar buffer codepoint
-              | Some (Two (first, second)) ->
-                  add_uchar buffer first;
-                  add_uchar buffer second
-              | None -> Uutf.Buffer.add_utf_8 buffer replacement
-              end
+          | `One codepoint -> add_utf_8 buffer codepoint
+          | `Two (first, second) ->
+              add_utf_8 buffer first;
+              add_utf_8 buffer second
           end;
           search after after
-  and reference_end text start =
+  and reference start =
     if start >= length then None
-    else if text.[start] = '#' then numeric_reference text (start + 1)
-    else if is_letter text.[start] then
-      let finish = consume_while text (start + 1) is_alphanumeric in
-      if finish < length && text.[finish] = ';' then
-        Some (finish + 1, Name (String.sub text start (finish - start)))
-      else None
-    else None
-  and numeric_reference text start =
-    if start >= length then None
-    else if text.[start] = 'x' || text.[start] = 'X' then
-      let digits = start + 1 in
-      let finish = consume_while text digits is_hexadecimal in
-      if finish > digits && finish < length && text.[finish] = ';' then begin
-        let value = ref 0 in
-        for index = digits to finish - 1 do
-          value := (!value lsl 4) lor hexadecimal_value text.[index]
-        done;
-        Some (finish + 1, Codepoint !value)
-      end
-      else None
     else
-      let finish = consume_while text start is_decimal in
-      if finish > start && finish < length && text.[finish] = ';' then
-        Some
-          ( finish + 1,
-            Codepoint (int_of_string (String.sub text start (finish - start)))
-          )
-      else None
-  and consume_while text index predicate =
+      match text.[start] with
+      | '\t' | '\n' | '\x0C' | ' ' | '<' | '&' -> None
+      | '#' -> numeric_reference (start + 1)
+      | _ -> named_reference start
+  and numeric_reference start =
+    if start < length && (text.[start] = 'x' || text.[start] = 'X') then
+      let digits = start + 1 in
+      let finish = consume_while digits is_hexadecimal in
+      if finish = digits then None
+      else
+        Some (terminate finish (numeric_value ~hexadecimal:true digits finish))
+    else
+      let finish = consume_while start is_decimal in
+      if finish = start then None
+      else
+        Some (terminate finish (numeric_value ~hexadecimal:false start finish))
+  and terminate finish value =
+    if finish < length && text.[finish] = ';' then (finish + 1, `One value)
+    else (finish, `One value)
+  and named_reference start =
+    let rec walk best index trie =
+      if index >= length then best
+      else
+        let trie = Trie.advance (Char.code text.[index]) trie in
+        match Trie.matches trie with
+        | Trie.No -> best
+        | Trie.Prefix -> walk best (index + 1) trie
+        | Trie.Multiple value -> walk (Some (index + 1, value)) (index + 1) trie
+        | Trie.Yes value -> Some (index + 1, value)
+    in
+    match walk None start (Lazy.force named_entity_trie) with
+    | None -> None
+    | Some (name_end, value) ->
+        if name_end < length && text.[name_end] = ';' then
+          Some (name_end + 1, value)
+        else if
+          in_attribute && name_end < length
+          && (is_alphanumeric_char text.[name_end] || text.[name_end] = '=')
+        then None
+        else Some (name_end, value)
+  and consume_while index predicate =
     if index < length && predicate text.[index] then
-      consume_while text (index + 1) predicate
+      consume_while (index + 1) predicate
     else index
   in
   search 0 0;
   Buffer.contents buffer
 
 let decode text =
-  if String.contains text '&' then
-    try decode_references text with Undecodable_chunk -> text
-  else text
+  if String.contains text '&' then decode_references false text else text
+
+let decode_attribute text =
+  if String.contains text '&' then decode_references true text else text
