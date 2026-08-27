@@ -88,6 +88,17 @@ let emit_many scanner tokens =
    else emit_many scanner [start; End (make_tag !tag [])];
    pause ();
  }
+ action garbage_tag_done {
+   match !tag with
+   | "script" -> fhold; fgoto in_script;
+   | "style" -> fhold; fgoto in_style;
+   | "title" -> fhold; fgoto in_title;
+   | "" -> fgoto main;
+   | name ->
+     emit scanner (Start (make_tag name (attributes !attrs)));
+     pause ();
+     fgoto main;
+ }
  action directive_done { }
 
  action garbage_tag { fhold; fgoto garbage_tag; }
@@ -125,7 +136,7 @@ let emit_many scanner tokens =
        pause ();
      } @{fgoto main;}));
 
- garbage_tag := (count_newlines | ^'>'* '>' @tag_done @{ fgoto main; });
+ garbage_tag := (count_newlines | ^'>'* '>' @garbage_tag_done);
 
  literal =
    ("'" ^"'"* >mark %mark_end "'" |
