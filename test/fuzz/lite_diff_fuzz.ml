@@ -1,4 +1,5 @@
 let maximum_input_length = 1024 * 1024
+let depth_limit = 60
 
 let read_input channel =
   let buffer = Buffer.create 4096 in
@@ -16,34 +17,54 @@ let read_input channel =
   in
   read 0
 
-let valid_utf_8 input =
-  try
-    Uutf.String.fold_utf_8
-      (fun () _ -> function `Uchar _ -> () | `Malformed _ -> raise Exit)
-      () input;
-    true
-  with Exit -> false
+(* "FRAGMENT <name>\n<body>" parses <body> in fragment context <name>;
+   anything else parses the whole input as a document. *)
+let context_of_input input : [ `Document | `Fragment of string ] * string =
+  let prefix = "FRAGMENT " in
+  let prefix_length = String.length prefix in
+  if
+    String.length input >= prefix_length
+    && String.sub input 0 prefix_length = prefix
+  then
+    match String.index_from_opt input prefix_length '\n' with
+    | Some newline ->
+        ( `Fragment (String.sub input prefix_length (newline - prefix_length)),
+          String.sub input (newline + 1) (String.length input - newline - 1) )
+    | None ->
+        ( `Fragment
+            (String.sub input prefix_length
+               (String.length input - prefix_length)),
+          "" )
+  else (`Document, input)
 
 let collect iter stream =
   let values = ref [] in
   iter (fun value -> values := value :: !values) stream;
   List.rev !values
 
-type outcome = Signals of Markup_common.signal list | Raised of string
+type errors = (Markup_common.location * Markup_common.Error.t) list
 
-let run parse collect_signals input =
-  try Signals (collect_signals (parse input))
-  with exn -> Raised (Printexc.to_string exn)
+type outcome =
+  | Signals of Markup_common.signal list * errors
+  | Raised of string * errors
 
-let oracle input =
+let run parse collect_signals context input =
+  let errors = ref [] in
+  let report location error = errors := (location, error) :: !errors in
+  try Signals (collect_signals (parse report context input), List.rev !errors)
+  with exn -> Raised (Printexc.to_string exn, List.rev !errors)
+
+let oracle context input =
   run
-    (fun input -> Oracle.parse (fun _ _ -> ()) input)
-    (collect Markup.iter) input
+    (fun report context input ->
+      Oracle.parse ~depth_limit ~context report input)
+    (collect Markup.iter) context input
 
-let lite input =
+let lite context input =
   run
-    (fun input -> Markup_lite.parse_html input)
-    (collect Markup_lite.iter) input
+    (fun report context input ->
+      Markup_lite.parse_html ~report ~context ~depth_limit input)
+    (collect Markup_lite.iter) context input
 
 let truncate string =
   let maximum = 240 in
@@ -55,6 +76,12 @@ let signal = function
   | Some signal ->
       Markup_common.signal_to_string signal |> truncate |> Printf.sprintf "%S"
 
+let error = function
+  | None -> "<end of errors>"
+  | Some ((line, column), error) ->
+      Printf.sprintf "(%d,%d) %s" line column
+        (truncate (Markup_common.Error.to_string error))
+
 let first = function [] -> None | value :: _ -> Some value
 
 let crash format =
@@ -65,31 +92,36 @@ let crash format =
       exit 2)
     format
 
-let compare_signals expected actual =
+let compare_lists what to_string expected actual =
   let rec compare index expected actual =
     match (expected, actual) with
     | [], [] -> ()
     | expected :: expected_rest, actual :: actual_rest when expected = actual ->
         compare (index + 1) expected_rest actual_rest
     | expected, actual ->
-        crash "signal %d: oracle=%s lite=%s" index
-          (signal (first expected))
-          (signal (first actual))
+        crash "%s %d: oracle=%s lite=%s" what index
+          (to_string (first expected))
+          (to_string (first actual))
   in
   compare 0 expected actual
 
+let compare_signals = compare_lists "signal" signal
+let compare_errors = compare_lists "error" error
+
 let check input =
-  match (oracle input, lite input) with
-  | Signals expected, Signals actual -> compare_signals expected actual
-  | Raised expected, Raised actual when expected = actual -> ()
-  | Raised expected, Raised actual ->
-      crash "exceptions differ: oracle=%S lite=%S" expected actual
-  | Raised exception_, Signals _ ->
+  let context, body = context_of_input input in
+  match (oracle context body, lite context body) with
+  | Signals (expected, expected_errors), Signals (actual, actual_errors) ->
+      compare_signals expected actual;
+      compare_errors expected_errors actual_errors
+  | Raised (expected, expected_errors), Raised (actual, actual_errors) ->
+      if expected <> actual then
+        crash "exceptions differ: oracle=%S lite=%S" expected actual;
+      compare_errors expected_errors actual_errors
+  | Raised (exception_, _), Signals _ ->
       crash "oracle raised but Lite returned signals: %S" exception_
-  | Signals _, Raised exception_ ->
+  | Signals _, Raised (exception_, _) ->
       crash "Lite raised but oracle returned signals: %S" exception_
 
 let () =
-  match read_input stdin with
-  | Some input when valid_utf_8 input -> check input
-  | Some _ | None -> ()
+  match read_input stdin with Some input -> check input | None -> ()
