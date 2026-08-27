@@ -136,6 +136,17 @@ let () =
                   disagrees "svg" "<svg><![CDATA[a]]></svg>";
                   disagrees "math" "<math><![CDATA[1]]></math>";
                 ];
+           "known divergence: form feed whitespace"
+           >::: [
+                  disagrees "alone" "\x0C";
+                  disagrees "after col" "<table><col>\x0C";
+                  disagrees "after template" "<template></template>\x0C";
+                ];
+           "known divergence: nul reconstructs formatting"
+           >::: [
+                  disagrees "p b p" "<p><b><p>\x00";
+                  disagrees "li s li" "<li><s><li>\x00<p";
+                ];
            "known divergence: fragment breakout rawtext eof"
            >::: [
                   disagrees ~context:(`Fragment "svg") "style slash"
