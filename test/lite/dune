@@ -44,6 +44,11 @@
  (action
   (run %{exe:lite_fuzz_regression.exe})))
 
+(rule
+ (alias runtest)
+ (action
+  (run %{exe:lite_baseline_regression.exe})))
+
 (executable
  (name lite_dump_signals)
  (modules lite_dump_signals)
