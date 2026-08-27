@@ -51,8 +51,33 @@ let normalize_newlines html =
     Buffer.contents buffer
   end
 
+(* Like src/baseline: the uutf decoder drops a leading BOM, then the input
+   preprocessor drops the first U+FEFF found anywhere in the stream. *)
+let remove_first_bom html =
+  let length = String.length html in
+  let rec find index =
+    if index + 3 > length then None
+    else if
+      html.[index] = '\xEF'
+      && html.[index + 1] = '\xBB'
+      && html.[index + 2] = '\xBF'
+    then Some index
+    else find (index + 1)
+  in
+  match find 0 with
+  | None -> html
+  | Some index ->
+      String.sub html 0 index ^ String.sub html (index + 3) (length - index - 3)
+
+let strip_leading_bom html =
+  let bom = "\xEF\xBB\xBF" in
+  if String.length html >= 3 && String.sub html 0 3 = bom then
+    remove_first_bom (String.sub html 3 (String.length html - 3))
+  else remove_first_bom html
+
 let create html =
   let html = if valid_utf_8 html then html else replace_malformed html in
+  let html = strip_leading_bom html in
   let html = normalize_newlines html in
   { scanner = Ragel_html_tokenizer.create html; pushed = [] }
 

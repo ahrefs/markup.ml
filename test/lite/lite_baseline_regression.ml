@@ -70,6 +70,11 @@ let () =
            >::: [
                   agrees "crlf in text" "<p>a\r\nb</p>"; agrees "lone cr" "a\rb";
                 ];
+           "bom"
+           >::: [
+                  agrees "leading bom" "\xEF\xBB\xBFa";
+                  agrees "bom in text" "a\xEF\xBB\xBFb";
+                ];
            "garbage tags"
            >::: [
                   agrees "at sign in name" "<x@y>z";
