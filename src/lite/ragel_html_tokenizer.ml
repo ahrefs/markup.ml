@@ -18,10 +18,8 @@ type t = {
   mark : int ref;
   mark_end : int ref;
   tag : string ref;
-  key : string ref;
-  attrs : (string * string) list ref;
   mutable declaration : int;
-  mutable raw_text : int;
+  mutable tag_scan : int;
   mutable line : int;
   tokens : Html_tokenizer.token array;
   lines : int array;
@@ -32,8 +30,7 @@ type t = {
 
 let decode = Html_entity_decoder.decode
 
-(* [attrs] is accumulated in reverse source order; the first occurrence of a
-   name wins, like src/baseline. *)
+(* The first occurrence of a name wins, like src/baseline. *)
 let attributes attrs =
   let rec dedupe seen = function
     | [] -> []
@@ -43,7 +40,7 @@ let attributes attrs =
           (name, Html_entity_decoder.decode_attribute value)
           :: dedupe (name :: seen) rest
   in
-  dedupe [] (List.rev attrs)
+  dedupe [] attrs
 
 let make_tag ?(self_closing = false) name attributes =
   { Token_tag.name; attributes; self_closing }
@@ -89,39 +86,13 @@ let _htmlstream_trans_keys : int array =
         122;
         10;
         10;
-        0;
+        9;
         62;
-        0;
-        122;
-        0;
-        122;
-        0;
-        122;
-        0;
-        62;
-        10;
-        60;
-        0;
-        62;
-        0;
-        62;
-        10;
-        60;
-        10;
-        34;
-        10;
-        34;
-        0;
-        122;
-        10;
-        39;
-        10;
-        39;
         0;
         122;
         10;
         62;
-        0;
+        9;
         62;
         10;
         62;
@@ -132,64 +103,10 @@ let _htmlstream_trans_keys : int array =
     ]
 
 let _htmlstream_key_spans : int array =
-  Array.concat
-    [
-      [|
-        51;
-        51;
-        123;
-        1;
-        63;
-        123;
-        123;
-        123;
-        63;
-        51;
-        63;
-        63;
-        51;
-        25;
-        25;
-        123;
-        30;
-        30;
-        123;
-        53;
-        63;
-        53;
-        1;
-      |];
-    ]
+  Array.concat [ [| 51; 51; 123; 1; 54; 123; 53; 54; 53; 1 |] ]
 
 let _htmlstream_index_offsets : int array =
-  Array.concat
-    [
-      [|
-        0;
-        52;
-        104;
-        228;
-        230;
-        294;
-        418;
-        542;
-        666;
-        730;
-        782;
-        846;
-        910;
-        962;
-        988;
-        1014;
-        1138;
-        1169;
-        1200;
-        1324;
-        1378;
-        1442;
-        1496;
-      |];
-    ]
+  Array.concat [ [| 0; 52; 104; 228; 230; 285; 409; 463; 518; 572 |] ]
 
 let _htmlstream_indicies : int array =
   Array.concat
@@ -426,36 +343,8 @@ let _htmlstream_indicies : int array =
         12;
         11;
         14;
-        14;
-        14;
-        14;
-        14;
-        14;
-        14;
-        14;
-        14;
-        14;
         15;
-        14;
-        14;
-        14;
-        14;
-        14;
-        14;
-        14;
-        14;
-        14;
-        14;
-        14;
-        14;
-        14;
-        14;
-        14;
-        14;
-        14;
-        14;
-        14;
-        14;
+        13;
         14;
         14;
         13;
@@ -472,7 +361,11 @@ let _htmlstream_indicies : int array =
         13;
         13;
         13;
-        16;
+        13;
+        13;
+        13;
+        13;
+        14;
         13;
         13;
         13;
@@ -487,8 +380,71 @@ let _htmlstream_indicies : int array =
         13;
         13;
         13;
+        14;
+        13;
+        13;
+        13;
+        13;
+        13;
+        13;
+        13;
+        13;
+        13;
+        13;
+        13;
+        13;
+        13;
+        13;
+        14;
+        13;
+        10;
+        10;
+        10;
+        10;
+        10;
+        10;
+        10;
+        10;
+        10;
+        10;
         17;
-        13;
+        10;
+        10;
+        10;
+        10;
+        10;
+        10;
+        10;
+        10;
+        10;
+        10;
+        10;
+        10;
+        10;
+        10;
+        10;
+        10;
+        10;
+        10;
+        10;
+        10;
+        10;
+        10;
+        16;
+        16;
+        16;
+        16;
+        16;
+        16;
+        16;
+        16;
+        16;
+        16;
+        16;
+        16;
+        18;
+        18;
+        16;
         18;
         18;
         18;
@@ -499,7 +455,13 @@ let _htmlstream_indicies : int array =
         18;
         18;
         18;
+        18;
+        16;
+        16;
+        16;
         19;
+        16;
+        16;
         18;
         18;
         18;
@@ -522,20 +484,43 @@ let _htmlstream_indicies : int array =
         18;
         18;
         18;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        20;
-        20;
+        18;
+        18;
+        18;
+        18;
+        16;
+        16;
+        16;
+        16;
+        18;
+        16;
+        18;
+        18;
+        18;
+        18;
+        18;
+        18;
+        18;
+        18;
+        18;
+        18;
+        18;
+        18;
+        18;
+        18;
+        18;
+        18;
+        18;
+        18;
+        18;
+        18;
+        18;
+        18;
+        18;
+        18;
+        18;
+        18;
+        16;
         21;
         20;
         20;
@@ -548,71 +533,61 @@ let _htmlstream_indicies : int array =
         20;
         20;
         20;
-        6;
-        6;
-        6;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
+        20;
         22;
-        6;
-        6;
         20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        6;
-        6;
-        6;
-        6;
-        20;
-        6;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        20;
-        6;
+        24;
+        25;
+        23;
+        24;
+        24;
+        23;
+        23;
+        23;
+        23;
+        23;
+        23;
+        23;
+        23;
         23;
         23;
         23;
@@ -638,6 +613,7 @@ let _htmlstream_indicies : int array =
         23;
         23;
         23;
+        24;
         23;
         23;
         23;
@@ -646,1053 +622,70 @@ let _htmlstream_indicies : int array =
         23;
         23;
         23;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        25;
-        25;
+        23;
+        23;
+        23;
+        23;
+        23;
+        23;
         26;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        6;
-        6;
-        27;
+        23;
         28;
-        6;
-        6;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        6;
-        6;
-        6;
-        6;
-        25;
-        6;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        25;
-        6;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
+        27;
         29;
-        29;
-        29;
-        29;
-        29;
-        29;
-        29;
-        29;
-        29;
-        29;
+        27;
+        31;
         30;
-        29;
-        29;
-        29;
-        29;
-        29;
-        29;
-        29;
-        29;
-        29;
-        29;
-        29;
-        29;
-        29;
-        29;
-        29;
-        29;
-        29;
-        29;
-        29;
-        29;
-        29;
-        29;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        31;
-        31;
-        32;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        6;
-        6;
-        33;
-        34;
-        6;
-        6;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        6;
-        6;
-        6;
-        6;
-        31;
-        6;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        6;
-        21;
-        21;
-        21;
-        21;
-        21;
-        21;
-        21;
-        21;
-        21;
-        21;
-        35;
-        21;
-        21;
-        21;
-        21;
-        21;
-        21;
-        21;
-        21;
-        21;
-        21;
-        21;
-        21;
-        21;
-        21;
-        21;
-        21;
-        21;
-        21;
-        21;
-        21;
-        21;
-        21;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        36;
-        6;
-        38;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        37;
-        39;
-        37;
-        33;
-        33;
-        33;
-        33;
-        33;
-        33;
-        33;
-        33;
-        33;
-        33;
-        41;
-        33;
-        33;
-        33;
-        33;
-        33;
-        33;
-        33;
-        33;
-        33;
-        33;
-        33;
-        33;
-        33;
-        33;
-        33;
-        33;
-        33;
-        33;
-        33;
-        33;
-        33;
-        33;
-        40;
-        42;
-        40;
-        40;
-        40;
-        40;
-        43;
-        40;
-        40;
-        40;
-        40;
-        40;
-        40;
-        40;
-        40;
-        40;
-        40;
-        40;
-        40;
-        40;
-        40;
-        40;
-        40;
-        40;
-        40;
-        40;
-        40;
-        40;
-        40;
-        6;
-        40;
-        45;
-        45;
-        45;
-        45;
-        45;
-        45;
-        45;
-        45;
-        45;
-        45;
-        46;
-        45;
-        45;
-        45;
-        45;
-        45;
-        45;
-        45;
-        45;
-        45;
-        45;
-        45;
-        45;
-        45;
-        45;
-        45;
-        45;
-        45;
-        45;
-        45;
-        45;
-        45;
-        45;
-        44;
-        6;
-        44;
-        44;
-        44;
-        44;
-        6;
-        44;
-        44;
-        44;
-        44;
-        44;
-        44;
-        44;
-        44;
-        44;
-        44;
-        44;
-        44;
-        44;
-        44;
-        44;
-        44;
-        44;
-        44;
-        44;
-        44;
-        44;
-        44;
-        47;
-        44;
-        49;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        48;
-        50;
-        48;
-        52;
-        51;
-        51;
-        51;
-        51;
-        51;
-        51;
-        51;
-        51;
-        51;
-        51;
-        51;
-        51;
-        51;
-        51;
-        51;
-        51;
-        51;
-        51;
-        51;
-        51;
-        51;
-        51;
-        51;
-        53;
-        51;
-        55;
-        54;
-        54;
-        54;
-        54;
-        54;
-        54;
-        54;
-        54;
-        54;
-        54;
-        54;
-        54;
-        54;
-        54;
-        54;
-        54;
-        54;
-        54;
-        54;
-        54;
-        54;
-        54;
-        54;
-        56;
-        54;
-        57;
-        57;
-        57;
-        57;
-        57;
-        57;
-        57;
-        57;
-        57;
-        57;
-        58;
-        57;
-        57;
-        57;
-        57;
-        57;
-        57;
-        57;
-        57;
-        57;
-        57;
-        57;
-        57;
-        57;
-        57;
-        57;
-        57;
-        57;
-        57;
-        57;
-        57;
-        57;
-        57;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        6;
-        31;
-        31;
-        32;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        6;
-        6;
-        6;
-        34;
-        6;
-        6;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        6;
-        6;
-        6;
-        6;
-        31;
-        6;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        31;
-        6;
-        60;
-        59;
-        59;
-        59;
-        59;
-        59;
-        59;
-        59;
-        59;
-        59;
-        59;
-        59;
-        59;
-        59;
-        59;
-        59;
-        59;
-        59;
-        59;
-        59;
-        59;
-        59;
-        59;
-        59;
-        59;
-        59;
-        59;
-        59;
-        59;
-        53;
-        59;
-        62;
-        61;
-        61;
-        61;
-        61;
-        61;
-        61;
-        61;
-        61;
-        61;
-        61;
-        61;
-        61;
-        61;
-        61;
-        61;
-        61;
-        61;
-        61;
-        61;
-        61;
-        61;
-        61;
-        61;
-        61;
-        61;
-        61;
-        61;
-        61;
-        56;
-        61;
-        64;
-        64;
-        64;
-        64;
-        64;
-        64;
-        64;
-        64;
-        64;
-        64;
-        65;
-        64;
-        64;
-        64;
-        64;
-        64;
-        64;
-        64;
-        64;
-        64;
-        64;
-        64;
-        64;
-        64;
-        64;
-        64;
-        64;
-        64;
-        64;
-        64;
-        64;
-        64;
-        64;
-        63;
-        63;
-        63;
-        63;
-        63;
-        63;
-        63;
-        63;
-        63;
-        63;
-        63;
-        63;
-        66;
-        66;
-        63;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        63;
-        63;
-        63;
-        67;
-        63;
-        63;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        63;
-        63;
-        63;
-        63;
-        66;
-        63;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        66;
-        63;
-        69;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        68;
-        70;
-        68;
-        72;
-        72;
-        72;
-        72;
-        72;
-        72;
-        72;
-        72;
-        72;
-        72;
-        73;
-        72;
-        72;
-        72;
-        72;
-        72;
-        72;
-        72;
-        72;
-        72;
-        72;
-        72;
-        72;
-        72;
-        72;
-        72;
-        72;
-        72;
-        72;
-        72;
-        72;
-        72;
-        72;
-        71;
-        71;
-        71;
-        71;
-        71;
-        71;
-        71;
-        71;
-        71;
-        71;
-        71;
-        71;
-        71;
-        71;
-        72;
-        71;
-        71;
-        71;
-        71;
-        71;
-        71;
-        71;
-        71;
-        71;
-        71;
-        71;
-        71;
-        71;
-        71;
-        74;
-        71;
-        76;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        75;
-        77;
-        75;
-        79;
-        78;
         0;
       |];
     ]
@@ -1711,76 +704,28 @@ let _htmlstream_trans_targs : int array =
         2;
         0;
         4;
-        18;
+        5;
         3;
         3;
         4;
-        5;
-        5;
-        8;
-        12;
-        5;
-        5;
+        1;
+        1;
         6;
-        8;
-        12;
+        5;
         7;
-        7;
+        0;
         6;
-        8;
-        10;
-        12;
-        7;
+        6;
+        0;
         7;
         6;
+        6;
+        0;
         8;
-        10;
-        12;
         8;
         9;
-        1;
-        1;
-        2;
-        11;
-        10;
-        13;
-        16;
-        11;
-        5;
-        5;
-        12;
-        1;
-        1;
-        2;
-        14;
-        14;
-        15;
-        14;
-        14;
-        15;
-        5;
-        5;
-        17;
-        17;
-        17;
-        17;
-        19;
-        18;
-        18;
-        20;
-        0;
-        19;
-        19;
-        0;
-        20;
-        19;
-        19;
-        0;
-        21;
-        21;
-        22;
-        22;
-        22;
+        9;
+        9;
       |];
     ]
 
@@ -1797,92 +742,39 @@ let _htmlstream_trans_actions : int array =
         5;
         4;
         6;
-        7;
-        8;
+        1;
+        0;
         0;
         4;
         0;
+        8;
         9;
         10;
-        9;
-        9;
-        0;
         4;
         1;
+        10;
+        0;
+        4;
         0;
         0;
         11;
         12;
-        0;
-        13;
         11;
+        0;
+        4;
         13;
-        0;
-        4;
-        14;
-        15;
-        0;
-        15;
-        4;
-        0;
-        17;
-        18;
-        16;
-        1;
-        4;
-        0;
-        0;
-        0;
-        19;
-        20;
-        19;
-        22;
-        23;
-        21;
-        1;
-        2;
-        24;
-        0;
-        4;
-        25;
-        15;
-        26;
-        1;
-        2;
-        0;
-        4;
-        27;
-        0;
-        4;
-        1;
-        27;
-        0;
-        4;
-        0;
-        0;
-        28;
-        29;
-        28;
-        0;
-        4;
-        30;
         0;
         4;
       |];
     ]
 
 let _htmlstream_eof_actions : int array =
-  Array.concat
-    [
-      [|
-        0; 3; 5; 0; 5; 5; 5; 5; 5; 16; 5; 5; 21; 5; 5; 5; 5; 5; 5; 5; 5; 0; 0;
-      |];
-    ]
+  Array.concat [ [| 0; 3; 5; 0; 7; 5; 5; 5; 0; 0 |] ]
 
 let htmlstream_start : int = 0
 let htmlstream_first_final : int = 0
 let htmlstream_error : int = -1
-let htmlstream_en_garbage_tag : int = 21
+let htmlstream_en_garbage_tag : int = 8
 let htmlstream_en_main : int = 0
 
 type _htmlstream_state = { mutable keys : int; mutable trans : int }
@@ -1908,10 +800,8 @@ let create data =
     mark = ref (-1);
     mark_end = ref (-1);
     tag = ref "";
-    key = ref "";
-    attrs = ref [];
     declaration = -1;
-    raw_text = -1;
+    tag_scan = -1;
     line = 1;
     tokens = Array.make buffer_capacity EOF;
     lines = Array.make buffer_capacity 1;
@@ -1929,8 +819,6 @@ let run scanner =
   let mark = scanner.mark in
   let mark_end = scanner.mark_end in
   let tag = scanner.tag in
-  let key = scanner.key in
-  let attrs = scanner.attrs in
   pe := !eof;
   let pause () =
     if scanner.write >= buffer_capacity - maximum_transition_output && !p < !eof
@@ -1947,18 +835,34 @@ let run scanner =
     mark_end := -1;
     text
   in
-  if scanner.raw_text >= 0 then begin
-    let start = scanner.raw_text in
-    scanner.raw_text <- -1;
+  if scanner.tag_scan >= 0 then begin
+    let start = scanner.tag_scan in
+    scanner.tag_scan <- -1;
     let name = !tag in
-    let result = Raw_text.scan data start name in
-    emit scanner (Start (make_tag name (attributes !attrs)));
-    emit scanner (String result.Raw_text.text);
-    if result.Raw_text.had_end_tag then emit scanner (End (make_tag name []));
-    for index = start to result.Raw_text.next - 1 do
+    let result = Tag_attributes.scan data start in
+    let next =
+      if not result.Tag_attributes.ok then !eof
+      else begin
+        let attrs = attributes result.Tag_attributes.attributes in
+        let self_closing = result.Tag_attributes.self_closing in
+        match name with
+        | "script" | "style" | "title" | "textarea" ->
+            let after_tag = result.Tag_attributes.next in
+            let body = Raw_text.scan data after_tag name in
+            emit scanner (Start (make_tag ~self_closing name attrs));
+            emit scanner (String body.Raw_text.text);
+            if body.Raw_text.had_end_tag then
+              emit scanner (End (make_tag name []));
+            body.Raw_text.next
+        | _ ->
+            emit scanner (Start (make_tag ~self_closing name attrs));
+            result.Tag_attributes.next
+      end
+    in
+    for index = start to next - 1 do
       if data.[index] = '\n' then scanner.line <- scanner.line + 1
     done;
-    p := result.Raw_text.next;
+    p := next;
     cs := htmlstream_en_main;
     if !p >= !eof then scanner.finished <- true
   end
@@ -2014,18 +918,7 @@ let run scanner =
                 mark := !p
               end;
               ()
-          | 25 ->
-              begin
-                mark_end := !p
-              end;
-              ()
-          | 9 ->
-              begin
-                tag := String.lowercase_ascii @@ sub ();
-                attrs := []
-              end;
-              ()
-          | 28 ->
+          | 11 ->
               begin
                 let name = String.lowercase_ascii @@ sub () in
                 emit scanner (End (make_tag name []));
@@ -2038,65 +931,25 @@ let run scanner =
                 pause ()
               end;
               ()
-          | 11 ->
+          | 13 ->
               begin
-                key := String.lowercase_ascii @@ sub ()
-              end;
-              ()
-          | 15 ->
-              begin
-                attrs := (!key, if !mark < 0 then "" else sub ()) :: !attrs
-              end;
-              ()
-          | 21 ->
-              begin match !tag with
-              | "" -> ()
-              | "script" | "style" | "title" | "textarea" ->
-                  scanner.raw_text <- !p;
-                  p.contents <- p.contents - 1;
-                  pe := !p + 1
-              | name ->
-                  emit scanner (Start (make_tag name (attributes !attrs)));
-                  pause ()
-              end;
-              ()
-          | 16 ->
-              begin match !tag with
-              | "" -> ()
-              | "script" | "style" | "title" | "textarea" ->
-                  scanner.raw_text <- !p;
-                  p.contents <- p.contents - 1;
-                  pe := !p + 1
-              | name ->
-                  emit scanner
-                    (Start
-                       (make_tag ~self_closing:true name (attributes !attrs)));
-                  pause ()
-              end;
-              ()
-          | 30 ->
-              begin match !tag with
-              | "" -> begin
+                begin
                   cs.contents <- 0;
                   if true then raise_notrace Goto_again_htmlstream
                 end
-              | "script" | "style" | "title" | "textarea" ->
-                  scanner.raw_text <- !p + 1;
-                  pe := !p + 1
-              | name ->
-                  emit scanner (Start (make_tag name (attributes !attrs)));
-                  pause ();
-                  begin
-                    cs.contents <- 0;
-                    if true then raise_notrace Goto_again_htmlstream
-                  end
+              end;
+              ()
+          | 6 ->
+              begin
+                scanner.declaration <- !p;
+                pe := !p + 1
               end;
               ()
           | 5 ->
               begin
                 p.contents <- p.contents - 1;
                 begin
-                  cs.contents <- 21;
+                  cs.contents <- 8;
                   if true then raise_notrace Goto_again_htmlstream
                 end
               end;
@@ -2106,20 +959,7 @@ let run scanner =
                 scanner.line <- scanner.line + 1
               end;
               ()
-          | 8 ->
-              begin
-                tag := ""
-              end;
-              ()
-          | 24 ->
-              begin
-                mark := !p
-              end;
-              begin
-                mark_end := !p
-              end;
-              ()
-          | 27 ->
+          | 10 ->
               begin
                 mark := !p
               end;
@@ -2137,24 +977,7 @@ let run scanner =
                 scanner.line <- scanner.line + 1
               end;
               ()
-          | 19 ->
-              begin
-                mark_end := !p
-              end;
-              begin
-                attrs := (!key, if !mark < 0 then "" else sub ()) :: !attrs
-              end;
-              ()
-          | 10 ->
-              begin
-                tag := String.lowercase_ascii @@ sub ();
-                attrs := []
-              end;
-              begin
-                scanner.line <- scanner.line + 1
-              end;
-              ()
-          | 29 ->
+          | 12 ->
               begin
                 let name = String.lowercase_ascii @@ sub () in
                 emit scanner (End (make_tag name []));
@@ -2164,128 +987,23 @@ let run scanner =
                 scanner.line <- scanner.line + 1
               end;
               ()
-          | 13 ->
+          | 8 ->
               begin
-                key := String.lowercase_ascii @@ sub ()
-              end;
-              begin
-                attrs := (!key, if !mark < 0 then "" else sub ()) :: !attrs
-              end;
-              ()
-          | 12 ->
-              begin
-                key := String.lowercase_ascii @@ sub ()
-              end;
-              begin
-                scanner.line <- scanner.line + 1
-              end;
-              ()
-          | 14 ->
-              begin
-                attrs := (!key, if !mark < 0 then "" else sub ()) :: !attrs
-              end;
-              begin
-                mark := !p
-              end;
-              ()
-          | 26 ->
-              begin
-                attrs := (!key, if !mark < 0 then "" else sub ()) :: !attrs
-              end;
-              begin
-                scanner.line <- scanner.line + 1
-              end;
-              ()
-          | 22 ->
-              begin match !tag with
-              | "" -> ()
-              | "script" | "style" | "title" | "textarea" ->
-                  scanner.raw_text <- !p;
-                  p.contents <- p.contents - 1;
-                  pe := !p + 1
-              | name ->
-                  emit scanner (Start (make_tag name (attributes !attrs)));
-                  pause ()
-              end;
-              begin
-                mark := !p
-              end;
-              ()
-          | 17 ->
-              begin match !tag with
-              | "" -> ()
-              | "script" | "style" | "title" | "textarea" ->
-                  scanner.raw_text <- !p;
-                  p.contents <- p.contents - 1;
-                  pe := !p + 1
-              | name ->
-                  emit scanner
-                    (Start
-                       (make_tag ~self_closing:true name (attributes !attrs)));
-                  pause ()
-              end;
-              begin
-                mark := !p
-              end;
-              ()
-          | 7 ->
-              begin
-                tag := ""
-              end;
-              begin
-                mark := !p
-              end;
-              ()
-          | 6 ->
-              begin
-                tag := ""
-              end;
-              begin
-                scanner.declaration <- !p;
+                tag := String.lowercase_ascii @@ sub ();
+                scanner.tag_scan <- !p;
+                p.contents <- p.contents - 1;
                 pe := !p + 1
               end;
-              ()
-          | 20 ->
-              begin
-                mark_end := !p
-              end;
-              begin
-                attrs := (!key, if !mark < 0 then "" else sub ()) :: !attrs
-              end;
-              begin
-                scanner.line <- scanner.line + 1
-              end;
-              ()
-          | 23 ->
-              begin match !tag with
-              | "" -> ()
-              | "script" | "style" | "title" | "textarea" ->
-                  scanner.raw_text <- !p;
-                  p.contents <- p.contents - 1;
-                  pe := !p + 1
-              | name ->
-                  emit scanner (Start (make_tag name (attributes !attrs)));
-                  pause ()
-              end;
               begin
                 mark := !p
               end;
-              begin
-                scanner.line <- scanner.line + 1
-              end;
               ()
-          | 18 ->
-              begin match !tag with
-              | "" -> ()
-              | "script" | "style" | "title" | "textarea" ->
-                  scanner.raw_text <- !p;
-                  p.contents <- p.contents - 1;
-                  pe := !p + 1
-              | name ->
-                  emit scanner
-                    (Start
-                       (make_tag ~self_closing:true name (attributes !attrs)));
-                  pause ()
+          | 9 ->
+              begin
+                tag := String.lowercase_ascii @@ sub ();
+                scanner.tag_scan <- !p;
+                p.contents <- p.contents - 1;
+                pe := !p + 1
               end;
               begin
                 mark := !p
@@ -2312,37 +1030,19 @@ let run scanner =
                   pause ()
                 end;
                 ()
-            | 21 ->
-                begin match !tag with
-                | "" -> ()
-                | "script" | "style" | "title" | "textarea" ->
-                    scanner.raw_text <- !p;
-                    p.contents <- p.contents - 1;
-                    pe := !p + 1
-                | name ->
-                    emit scanner (Start (make_tag name (attributes !attrs)));
-                    pause ()
-                end;
-                ()
-            | 16 ->
-                begin match !tag with
-                | "" -> ()
-                | "script" | "style" | "title" | "textarea" ->
-                    scanner.raw_text <- !p;
-                    p.contents <- p.contents - 1;
-                    pe := !p + 1
-                | name ->
-                    emit scanner
-                      (Start
-                         (make_tag ~self_closing:true name (attributes !attrs)));
-                    pause ()
+            | 7 ->
+                begin
+                  tag := String.lowercase_ascii @@ sub ();
+                  scanner.tag_scan <- !p;
+                  p.contents <- p.contents - 1;
+                  pe := !p + 1
                 end;
                 ()
             | 5 ->
                 begin
                   p.contents <- p.contents - 1;
                   begin
-                    cs.contents <- 21;
+                    cs.contents <- 8;
                     if true then raise_notrace Goto_again_htmlstream
                   end
                 end;
@@ -2357,7 +1057,7 @@ let run scanner =
       do_start ()
     end;
 
-    if scanner.declaration >= 0 || scanner.raw_text >= 0 then ()
+    if scanner.declaration >= 0 || scanner.tag_scan >= 0 then ()
     else if !p >= !eof then scanner.finished <- true
     else if scanner.write = 0 then scanner.finished <- true
   end
