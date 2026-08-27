@@ -4,6 +4,7 @@
 let replacement = Uchar.of_int 0xFFFD
 
 type reference = Codepoint of int | Name of string
+type entity = One of int | Two of int * int
 
 let html4_names =
   "lt gt amp quot apos nbsp iexcl cent pound curren yen brvbar sect uml copy \
@@ -27,6 +28,13 @@ let html4_names =
    ndash mdash lsquo rsquo sbquo ldquo rdquo bdquo dagger Dagger permil lsaquo \
    rsaquo euro"
 
+module Str_tbl = Hashtbl.Make (struct
+  type t = string
+
+  let equal = String.equal
+  let hash = Hashtbl.hash
+end)
+
 let split_words s =
   let rec scan start index words =
     if index = String.length s then
@@ -43,18 +51,24 @@ let split_words s =
 
 let named_entities =
   lazy
-    (let names = Hashtbl.create 253 in
-     List.iter (fun name -> Hashtbl.add names name ()) (split_words html4_names);
-     let entities = Hashtbl.create 253 in
+    (let names = Str_tbl.create 253 in
+     List.iter (fun name -> Str_tbl.add names name ()) (split_words html4_names);
+     let entities = Str_tbl.create 253 in
      Array.iter
        (fun (name, value) ->
-         if Hashtbl.mem names name then Hashtbl.replace entities name value)
+         if Str_tbl.mem names name then
+           let value =
+             match value with
+             | `One codepoint -> One codepoint
+             | `Two (first, second) -> Two (first, second)
+           in
+           Str_tbl.replace entities name value)
        Markup_entities.Entities.entities;
      (* HTML5 changed [lang] and [rang], and its legacy no-semicolon [sup1]
         entry collides with [sup] in the generated table. *)
-     Hashtbl.replace entities "sup" (`One 0x2283);
-     Hashtbl.replace entities "lang" (`One 0x2329);
-     Hashtbl.replace entities "rang" (`One 0x232A);
+     Str_tbl.replace entities "sup" (One 0x2283);
+     Str_tbl.replace entities "lang" (One 0x2329);
+     Str_tbl.replace entities "rang" (One 0x232A);
      entities)
 
 let add_uchar buffer codepoint =
@@ -98,9 +112,9 @@ let decode_references text =
           begin match value with
           | Codepoint codepoint -> add_uchar buffer codepoint
           | Name name ->
-              begin match Hashtbl.find_opt (Lazy.force named_entities) name with
-              | Some (`One codepoint) -> add_uchar buffer codepoint
-              | Some (`Two (first, second)) ->
+              begin match Str_tbl.find_opt (Lazy.force named_entities) name with
+              | Some (One codepoint) -> add_uchar buffer codepoint
+              | Some (Two (first, second)) ->
                   add_uchar buffer first;
                   add_uchar buffer second
               | None -> Uutf.Buffer.add_utf_8 buffer replacement
