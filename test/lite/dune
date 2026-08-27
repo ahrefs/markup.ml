@@ -43,3 +43,8 @@
  (alias runtest)
  (action
   (run %{exe:lite_fuzz_regression.exe})))
+
+(executable
+ (name lite_dump_signals)
+ (modules lite_dump_signals)
+ (libraries lite_test_oracle markup markup.common markup.lite))
