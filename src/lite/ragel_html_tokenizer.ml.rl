@@ -24,6 +24,7 @@ type t = {
   key : string ref;
   attrs : (string * string) list ref;
   mutable declaration : int;
+  mutable raw_text : int;
   mutable line : int;
   tokens : Html_tokenizer.token array;
   lines : int array;
@@ -61,6 +62,25 @@ let emit scanner token =
 let emit_many scanner tokens =
   List.iter (emit scanner) tokens
 
+(* The tree builder treats a leading whitespace run differently from the rest
+   of a text run in several insertion modes; src/baseline gets this for free
+   from per-character tokens. *)
+let emit_text scanner text =
+  let length = String.length text in
+  let rec whitespace_end index =
+    if index < length then
+      match text.[index] with
+      | '\t' | '\n' | '\x0C' | '\r' | ' ' -> whitespace_end (index + 1)
+      | _ -> index
+    else index
+  in
+  let boundary = whitespace_end 0 in
+  if boundary = 0 || boundary = length then emit scanner (String text)
+  else begin
+    emit scanner (String (String.sub text 0 boundary));
+    emit scanner (String (String.sub text boundary (length - boundary)))
+  end
+
 %%{
  machine htmlstream;
 
@@ -73,27 +93,29 @@ let emit_many scanner tokens =
    pause ();
  }
  action text {
-   emit scanner (String (decode (sub ())));
+   emit_text scanner (decode (sub ()));
    pause ();
  }
  action key { key := String.lowercase_ascii @@ sub () }
  action store_attr { attrs := (!key, if !mark < 0 then "" else sub()) :: !attrs }
  action tag_done {
    match !tag with
-   | "script" -> fhold; fgoto in_script;
-   | "style" -> fhold; fgoto in_style;
-   | "title" -> fhold; fgoto in_title;
    | "" -> ()
+   | "script" | "style" | "title" | "textarea" ->
+     scanner.raw_text <- !p;
+     fhold;
+     pe := !p + 1;
    | name ->
      emit scanner (Start (make_tag name (attributes !attrs)));
      pause ();
  }
  action tag_done_2 {
    match !tag with
-   | "script" -> fhold; fgoto in_script;
-   | "style" -> fhold; fgoto in_style;
-   | "title" -> fhold; fgoto in_title;
    | "" -> ()
+   | "script" | "style" | "title" | "textarea" ->
+     scanner.raw_text <- !p;
+     fhold;
+     pe := !p + 1;
    | name ->
      emit scanner
        (Start (make_tag ~self_closing:true name (attributes !attrs)));
@@ -101,10 +123,10 @@ let emit_many scanner tokens =
  }
  action garbage_tag_done {
    match !tag with
-   | "script" -> fhold; fgoto in_script;
-   | "style" -> fhold; fgoto in_style;
-   | "title" -> fhold; fgoto in_title;
    | "" -> fgoto main;
+   | "script" | "style" | "title" | "textarea" ->
+     scanner.raw_text <- !p + 1;
+     pe := !p + 1;
    | name ->
      emit scanner (Start (make_tag name (attributes !attrs)));
      pause ();
@@ -119,34 +141,6 @@ let emit_many scanner tokens =
  wsp = 0..32;
  ident = alnum | '-' | [_:.] ;
  tag_name = ident ( any - ( wsp | '/' | '>' ) )*;
-
- in_script :=
-   (count_newlines | any* >mark %mark_end :>>
-     ('<' wsp* '/' wsp* 'script'i wsp* '>' >{
-       emit_many scanner
-         [Start (make_tag "script" (attributes !attrs));
-          String (sub ());
-          End (make_tag "script" [])];
-       pause ();
-     } @{fgoto main;}));
- in_style :=
-   (count_newlines | any* >mark %mark_end :>>
-     ('<' wsp* '/' wsp* 'style'i wsp* '>' >{
-       emit_many scanner
-         [Start (make_tag "style" (attributes !attrs));
-          String (sub ());
-          End (make_tag "style" [])];
-       pause ();
-     } @{fgoto main;}));
- in_title :=
-   (count_newlines | any* >mark %mark_end :>>
-     ('<' wsp* '/' wsp* 'title'i wsp* '>' >{
-       emit_many scanner
-         [Start (make_tag "title" (attributes !attrs));
-          String (decode (sub ()));
-          End (make_tag "title" [])];
-       pause ();
-     } @{fgoto main;}));
 
  garbage_tag := (count_newlines | ^'>'* '>' @garbage_tag_done);
 
@@ -182,6 +176,7 @@ let create data =
    key = ref "";
    attrs = ref [];
    declaration = (-1);
+   raw_text = (-1);
    line = 1;
    tokens = Array.make buffer_capacity EOF;
    lines = Array.make buffer_capacity 1;
@@ -218,7 +213,23 @@ let run scanner =
     mark_end := -1;
     text
   in
-  if scanner.declaration >= 0 then begin
+  if scanner.raw_text >= 0 then begin
+    let start = scanner.raw_text in
+    scanner.raw_text <- (-1);
+    let name = !tag in
+    let result = Raw_text.scan data start name in
+    emit scanner (Start (make_tag name (attributes !attrs)));
+    emit scanner (String result.Raw_text.text);
+    if result.Raw_text.had_end_tag then
+      emit scanner (End (make_tag name []));
+    for index = start to result.Raw_text.next - 1 do
+      if data.[index] = '\n' then scanner.line <- scanner.line + 1
+    done;
+    p := result.Raw_text.next;
+    cs := htmlstream_en_main;
+    if !p >= !eof then scanner.finished <- true
+  end
+  else if scanner.declaration >= 0 then begin
     let start = scanner.declaration in
     scanner.declaration <- (-1);
     let result = Markup_declaration.scan data start in
@@ -232,7 +243,7 @@ let run scanner =
   end
   else begin
     %%write exec;
-    if scanner.declaration >= 0 then ()
+    if scanner.declaration >= 0 || scanner.raw_text >= 0 then ()
     else if !p >= !eof then scanner.finished <- true
     else if scanner.write = 0 then scanner.finished <- true
   end
