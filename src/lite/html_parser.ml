@@ -6,17 +6,17 @@ open Token_tag
 open Kstream
 
 (* Namespaces for pattern matching. *)
-type ns = [ `HTML | `MathML | `SVG | `Other of string ]
+type ns = HTML | MathML | SVG | Other of string
 type qname = ns * string
 
 module Ns : sig
   val to_string : ns -> string
 end = struct
   let to_string = function
-    | `HTML -> html_ns
-    | `MathML -> mathml_ns
-    | `SVG -> svg_ns
-    | `Other s -> s
+    | HTML -> html_ns
+    | MathML -> mathml_ns
+    | SVG -> svg_ns
+    | Other s -> s
 end
 
 (* Elements. *)
@@ -56,7 +56,7 @@ module Element : sig
 end = struct
   let rec dummy =
     {
-      element_name = (`HTML, "dummy");
+      element_name = (HTML, "dummy");
       location = (1, 1);
       is_html_integration_point = false;
       suppress = true;
@@ -84,7 +84,7 @@ end = struct
     }
 
   let is_special = function
-    | ( `HTML,
+    | ( HTML,
         ( "address" | "applet" | "area" | "article" | "aside" | "base"
         | "basefont" | "bgsound" | "blockquote" | "body" | "br" | "button"
         | "caption" | "center" | "col" | "colgroup" | "dd" | "details"
@@ -99,9 +99,9 @@ end = struct
         | "template" | "textarea" | "tfoot" | "th" | "thead" | "title"
         | "tr" | "track" | "ul" | "wbr" | "xmp" ) ) ->
         true
-    | `MathML, ("mi" | "mo" | "mn" | "ms" | "mtext" | "annotation-xml") ->
+    | MathML, ("mi" | "mo" | "mn" | "ms" | "mtext" | "annotation-xml") ->
         true
-    | `SVG, ("foreignObject" | "desc" | "title") -> true
+    | SVG, ("foreignObject" | "desc" | "title") -> true
     | _ -> false
 
   let is_not_hidden tag =
@@ -237,9 +237,9 @@ end = struct
         let context =
           match detected_context with
           | `Document -> `Document
-          | `Fragment "math" -> `Fragment (`MathML, "math")
-          | `Fragment "svg" -> `Fragment (`SVG, "svg")
-          | `Fragment name -> `Fragment (`HTML, name)
+          | `Fragment "math" -> `Fragment (MathML, "math")
+          | `Fragment "svg" -> `Fragment (SVG, "svg")
+          | `Fragment name -> `Fragment (HTML, name)
         in
 
         let context_element =
@@ -248,7 +248,7 @@ end = struct
           | `Fragment name ->
               let is_html_integration_point =
                 match name with
-                | `SVG, ("foreignObject" | "desc" | "title") -> true
+                | SVG, ("foreignObject" | "desc" | "title") -> true
                 | _ -> false
               in
 
@@ -280,20 +280,20 @@ module Foreign : sig
   val adjust_svg_tag_name : string -> string
 end = struct
   let is_mathml_text_integration_point = function
-    | `MathML, ("mi" | "mo" | "mn" | "ms" | "mtext") -> true
+    | MathML, ("mi" | "mo" | "mn" | "ms" | "mtext") -> true
     | _ -> false
 
   let is_html_integration_point namespace tag_name attributes =
     match namespace with
-    | `HTML | `Other _ -> false
-    | `MathML ->
+    | HTML | Other _ -> false
+    | MathML ->
         tag_name = "annotation-xml"
         && attributes
            |> List.exists (function
              | "encoding", "text/html" -> true
              | "encoding", "application/xhtml+xml" -> true
              | _ -> false)
-    | `SVG -> list_mem_string tag_name [ "foreignObject"; "desc"; "title" ]
+    | SVG -> list_mem_string tag_name [ "foreignObject"; "desc"; "title" ]
 
   let adjust_mathml_attributes attributes =
     attributes
@@ -463,17 +463,17 @@ end = struct
 
   let current_element_is (open_elements, _) names =
     match !open_elements with
-    | { element_name = `HTML, name } :: _ -> list_mem_string name names
+    | { element_name = HTML, name } :: _ -> list_mem_string name names
     | _ -> false
 
   let current_element_is_foreign context t =
     match adjusted_current_element context t with
-    | Some { element_name = ns, _ } when ns <> `HTML -> true
+    | Some { element_name = ns, _ } when ns <> HTML -> true
     | _ -> false
 
   let has (open_elements, _) name =
     List.exists
-      (fun { element_name = ns, name' } -> ns = `HTML && name' = name)
+      (fun { element_name = ns, name' } -> ns = HTML && name' = name)
       !open_elements
 
   let in_scope_general is_delimiter (open_elements, depth_limit) name' =
@@ -481,32 +481,32 @@ end = struct
       | [] -> false
       | _ when depth = 0 -> failwith "in_scope_general: depth limit reached"
       | { element_name = (ns, name'') as name } :: more ->
-          if ns = `HTML && name'' = name' then true
+          if ns = HTML && name'' = name' then true
           else if is_delimiter name then false
           else scan (depth - 1) more
     in
     scan depth_limit !open_elements
 
   let is_scope_delimiter = function
-    | ( `HTML,
+    | ( HTML,
         ( "applet" | "caption" | "html" | "table" | "td" | "th" | "marquee"
         | "object" | "template" ) ) ->
         true
-    | `MathML, ("mi" | "mo" | "mn" | "ms" | "mtext" | "annotation-xml") ->
+    | MathML, ("mi" | "mo" | "mn" | "ms" | "mtext" | "annotation-xml") ->
         true
-    | `SVG, ("foreignObject" | "desc" | "title") -> true
+    | SVG, ("foreignObject" | "desc" | "title") -> true
     | _ -> false
 
   let is_button_scope_delimiter = function
-    | `HTML, "button" -> true
+    | HTML, "button" -> true
     | name -> is_scope_delimiter name
 
   let is_list_item_scope_delimiter = function
-    | `HTML, ("ol" | "ul") -> true
+    | HTML, ("ol" | "ul") -> true
     | name -> is_scope_delimiter name
 
   let is_table_scope_delimiter = function
-    | `HTML, ("html" | "table" | "template") -> true
+    | HTML, ("html" | "table" | "template") -> true
     | _ -> false
 
   let in_scope = in_scope_general is_scope_delimiter
@@ -519,7 +519,7 @@ end = struct
       | [] -> false
       | _ when depth = 0 -> failwith "in_select_scope: depth limit reached"
       | { element_name = ns, name' } :: more ->
-          if ns <> `HTML then false
+          if ns <> HTML then false
           else if name' = name then true
           else if name' = "optgroup" || name' = "option" then
             scan (depth - 1) more
@@ -532,7 +532,7 @@ end = struct
       | [] -> false
       | _ when depth = 0 -> failwith "one_in_scope: depth limit reached"
       | { element_name = (ns, name') as name } :: more ->
-          if ns = `HTML && list_mem_string name' names then true
+          if ns = HTML && list_mem_string name' names then true
           else if is_scope_delimiter name then false
           else scan (depth - 1) more
     in
@@ -543,7 +543,7 @@ end = struct
       | [] -> false
       | _ when depth = 0 -> failwith "one_in_table_scope: depth limit reached"
       | { element_name = (ns, name') as name } :: more ->
-          if ns = `HTML && list_mem_string name' names then true
+          if ns = HTML && list_mem_string name' names then true
           else if is_table_scope_delimiter name then false
           else scan (depth - 1) more
     in
@@ -647,7 +647,7 @@ end = struct
   let has_before_marker active_formatting_elements name =
     let rec scan = function
       | [] | Marker :: _ -> None
-      | Element_ (n, _, _) :: _ when n.element_name = (`HTML, name) -> Some n
+      | Element_ (n, _, _) :: _ when n.element_name = (HTML, name) -> Some n
       | _ :: more -> scan more
     in
     scan !active_formatting_elements
@@ -866,7 +866,7 @@ end = struct
       let rec scan = function
         | [] -> None
         | Active.Marker :: _ -> None
-        | Active.Element_ (({ element_name = `HTML, n } as e), _, _) :: _
+        | Active.Element_ (({ element_name = HTML, n } as e), _, _) :: _
           when n = subject ->
             Some e
         | _ :: rest -> scan rest
@@ -980,7 +980,7 @@ end = struct
     in
 
     let current_node = Stack.require_current_element stack in
-    if current_node.element_name = (`HTML, subject) then begin
+    if current_node.element_name = (HTML, subject) then begin
       open_elements := List.tl !open_elements;
       current_node.is_open <- false;
       current_node.end_location <- l;
@@ -1033,7 +1033,7 @@ let parse ?depth_limit requested_context report tokens =
       | [] -> k ()
       | { element_name = ns, name; location } :: more ->
           report_if
-            (not (ns = `HTML && list_mem_string name names))
+            (not (ns = HTML && list_mem_string name names))
             location
             (fun () -> `Unmatched_start_tag name)
             !throw
@@ -1047,12 +1047,12 @@ let parse ?depth_limit requested_context report tokens =
     Context.initialize requested_context context throw_ (fun () ->
         let initial_tokenizer_state =
           match Context.the_context context with
-          | `Fragment (`HTML, ("title" | "textarea")) -> `RCDATA
+          | `Fragment (HTML, ("title" | "textarea")) -> `RCDATA
           | `Fragment
-              (`HTML, ("style" | "xmp" | "iframe" | "noembed" | "noframes")) ->
+              (HTML, ("style" | "xmp" | "iframe" | "noembed" | "noframes")) ->
               `RAWTEXT
-          | `Fragment (`HTML, "script") -> `Script_data
-          | `Fragment (`HTML, "plaintext") -> `PLAINTEXT
+          | `Fragment (HTML, "script") -> `Script_data
+          | `Fragment (HTML, "plaintext") -> `PLAINTEXT
           | _ -> `Data
         in
 
@@ -1062,13 +1062,13 @@ let parse ?depth_limit requested_context report tokens =
         | `Document -> ()
         | `Fragment _ ->
             let notional_root =
-              Element.create ~suppress:true (`HTML, "html") (1, 1)
+              Element.create ~suppress:true (HTML, "html") (1, 1)
             in
             Stack.elements open_elements := [ notional_root ]
         end;
 
         begin match Context.the_context context with
-        | `Fragment (`HTML, "template") ->
+        | `Fragment (HTML, "template") ->
             Template.push template_insertion_modes in_template_mode
         | _ -> ()
         end;
@@ -1152,7 +1152,7 @@ let parse ?depth_limit requested_context report tokens =
     | Some (l', strings) -> emit' l' (`Text strings) m
   and emit l s m = emit_text (fun () -> emit' l s m)
   and push_and_emit ?(formatting = false) ?(acknowledge = false)
-      ?(namespace = `HTML) ?(set_form_element_pointer = false) location
+      ?(namespace = HTML) ?(set_form_element_pointer = false) location
       ({ Token_tag.name; attributes; self_closing } as tag) mode =
     report_if
       (self_closing && not acknowledge)
@@ -1164,7 +1164,7 @@ let parse ?depth_limit requested_context report tokens =
 
         let tag_name =
           match namespace with
-          | `SVG -> Foreign.adjust_svg_tag_name name
+          | SVG -> Foreign.adjust_svg_tag_name name
           | _ -> name
         in
 
@@ -1177,9 +1177,9 @@ let parse ?depth_limit requested_context report tokens =
         in
         let attributes =
           match namespace with
-          | `HTML | `Other _ -> attributes
-          | `MathML -> Foreign.adjust_mathml_attributes attributes
-          | `SVG -> Foreign.adjust_svg_attributes attributes
+          | HTML | Other _ -> attributes
+          | MathML -> Foreign.adjust_mathml_attributes attributes
+          | SVG -> Foreign.adjust_svg_attributes attributes
         in
 
         let element_entry =
@@ -1223,7 +1223,7 @@ let parse ?depth_limit requested_context report tokens =
           if condition element then mode () else pop location iterate
     in
     iterate ()
-  and close_element ?(ns = `HTML) l name mode =
+  and close_element ?(ns = HTML) l name mode =
     pop_until
       (fun { element_name = ns', name' } -> ns' = ns && name' = name)
       l
@@ -1233,7 +1233,7 @@ let parse ?depth_limit requested_context report tokens =
       match !(Stack.elements open_elements) with
       | [] -> mode ()
       | { element_name = ns, name } :: _ ->
-          if ns = `HTML && list_mem_string name names then pop location mode
+          if ns = HTML && list_mem_string name names then pop location mode
           else
             report location (`Unmatched_start_tag name) !throw (fun () ->
                 pop location iterate)
@@ -1261,7 +1261,7 @@ let parse ?depth_limit requested_context report tokens =
   and pop_to_table_context location mode =
     pop_until
       (function
-        | { element_name = `HTML, ("table" | "template" | "html") } -> true
+        | { element_name = HTML, ("table" | "template" | "html") } -> true
         | _ -> false)
       location mode
   and pop_to_table_body_context location mode =
@@ -1269,7 +1269,7 @@ let parse ?depth_limit requested_context report tokens =
       (function
         | {
             element_name =
-              `HTML, ("tbody" | "thead" | "tfoot" | "template" | "html");
+              HTML, ("tbody" | "thead" | "tfoot" | "template" | "html");
           } ->
             true
         | _ -> false)
@@ -1277,14 +1277,14 @@ let parse ?depth_limit requested_context report tokens =
   and pop_to_table_row_context location mode =
     pop_until
       (function
-        | { element_name = `HTML, ("tr" | "template" | "html") } -> true
+        | { element_name = HTML, ("tr" | "template" | "html") } -> true
         | _ -> false)
       location mode
   and close_element_with_implied name location mode =
     pop_implied ~except:name location (fun () ->
         let check_element k =
           match Stack.current_element open_elements with
-          | Some { element_name = `HTML, name' } when name' = name -> k ()
+          | Some { element_name = HTML, name' } when name' = name -> k ()
           | Some { element_name = _, name; location } ->
               report location (`Unmatched_start_tag name) !throw k
           | None -> unmatched_end_tag location name k
@@ -1294,14 +1294,14 @@ let parse ?depth_limit requested_context report tokens =
     pop_implied location (fun () ->
         (fun mode ->
           match Stack.current_element open_elements with
-          | Some { element_name = `HTML, ("td" | "th") } -> mode ()
+          | Some { element_name = HTML, ("td" | "th") } -> mode ()
           | Some { element_name = _, name } ->
               unmatched_end_tag location name mode
           | None -> unmatched_end_tag location "" mode)
         @@ fun () ->
         pop_until
           (function
-            | { element_name = `HTML, ("td" | "th") } -> true | _ -> false)
+            | { element_name = HTML, ("td" | "th") } -> true | _ -> false)
           location
           (fun () -> pop location mode))
   and close_current_p_element l mode =
@@ -1312,12 +1312,12 @@ let parse ?depth_limit requested_context report tokens =
     let rec scan = function
       | [] -> mode ()
       | { element_name = (ns, name) as name' } :: more ->
-          if ns = `HTML && list_mem_string name names then
+          if ns = HTML && list_mem_string name names then
             close_element_with_implied name l mode
           else if
             Element.is_special name'
             && match name' with
-               | `HTML, ("address" | "div" | "p") -> false
+               | HTML, ("address" | "div" | "p") -> false
                | _ -> true
           then mode ()
           else scan more
@@ -1354,12 +1354,12 @@ let parse ?depth_limit requested_context report tokens =
         let foreign =
           match (Stack.adjusted_current_element context open_elements, t) with
           | None, _ -> false
-          | Some { element_name = `HTML, _ }, _ -> false
+          | Some { element_name = HTML, _ }, _ -> false
           | Some { element_name }, `Start { name }
             when Foreign.is_mathml_text_integration_point element_name
                  && name <> "mglyph" && name <> "malignmark" ->
               false
-          | ( Some { element_name = `MathML, "annotation-xml" },
+          | ( Some { element_name = MathML, "annotation-xml" },
               `Start { name = "svg" } ) ->
               false
           | Some { is_html_integration_point = true }, `Start _ -> false
@@ -1549,8 +1549,8 @@ let parse ?depth_limit requested_context report tokens =
          deviation from conformance, so that fragments "<head>...</head>" don't
          get an implicit <body> element generated after the <head> element. *)
         | l, `EOF
-          when Context.the_context context = `Fragment (`HTML, "html")
-               || Context.the_context context = `Fragment (`HTML, "head") ->
+          when Context.the_context context = `Fragment (HTML, "html")
+               || Context.the_context context = `Fragment (HTML, "head") ->
             emit_end l
         | (l, _) as t ->
             push tokens t;
@@ -1596,7 +1596,7 @@ let parse ?depth_limit requested_context report tokens =
             | [ _ ] -> mode ()
             | _ ->
                 let rec second_is_body = function
-                  | [ { element_name = `HTML, "body" }; _ ] -> true
+                  | [ { element_name = HTML, "body" }; _ ] -> true
                   | [] -> false
                   | _ :: more -> second_is_body more
                 in
@@ -1701,7 +1701,7 @@ let parse ?depth_limit requested_context report tokens =
               | Some
                   {
                     element_name =
-                      ( `HTML,
+                      ( HTML,
                         (("h1" | "h2" | "h3" | "h4" | "h5" | "h6") as name') );
                   } ->
                   misnested_tag l t name' (fun () -> pop l mode')
@@ -1811,7 +1811,7 @@ let parse ?depth_limit requested_context report tokens =
           pop_implied l (fun () ->
               (fun next ->
                 match Stack.current_element open_elements with
-                | Some { element_name = `HTML, name' }
+                | Some { element_name = HTML, name' }
                   when list_mem_string name'
                          [ "h1"; "h2"; "h3"; "h4"; "h5"; "h6" ] ->
                     next ()
@@ -1963,11 +1963,11 @@ let parse ?depth_limit requested_context report tokens =
           else finish ()) (fun () -> push_and_emit l t mode)
     | l, `Start ({ name = "math" } as t) ->
         reconstruct_active_formatting_elements (fun () ->
-            push_and_emit ~acknowledge:true ~namespace:`MathML l t (fun () ->
+            push_and_emit ~acknowledge:true ~namespace:MathML l t (fun () ->
                 if t.self_closing then pop l mode else mode ()))
     | l, `Start ({ name = "svg" } as t) ->
         reconstruct_active_formatting_elements (fun () ->
-            push_and_emit ~acknowledge:true ~namespace:`SVG l t (fun () ->
+            push_and_emit ~acknowledge:true ~namespace:SVG l t (fun () ->
                 if t.self_closing then pop l mode else mode ()))
     | ( l,
         `Start
@@ -1986,7 +1986,7 @@ let parse ?depth_limit requested_context report tokens =
     let rec close = function
       | [] -> mode ()
       | { element_name = (ns, name') as name'' } :: rest ->
-          if ns = `HTML && name' = name then
+          if ns = HTML && name' = name then
             pop_implied ~except:name l (fun () -> pop l mode)
           else if Element.is_special name'' then
             report l (`Unmatched_end_tag name) !throw mode
@@ -2392,8 +2392,8 @@ let parse ?depth_limit requested_context report tokens =
     | l, `End { name = "optgroup" } ->
         (fun mode' ->
           match !(Stack.elements open_elements) with
-          | { element_name = `HTML, "option" }
-            :: { element_name = `HTML, "optgroup" }
+          | { element_name = HTML, "option" }
+            :: { element_name = HTML, "optgroup" }
             :: _ ->
               pop l mode'
           | _ -> mode' ()) (fun () ->
@@ -2617,7 +2617,7 @@ let parse ?depth_limit requested_context report tokens =
   and foreign_start_tag mode l tag =
     let namespace =
       match Stack.adjusted_current_element context open_elements with
-      | None -> `HTML
+      | None -> HTML
       | Some { element_name = ns, _ } -> ns
     in
 
@@ -2670,7 +2670,7 @@ let parse ?depth_limit requested_context report tokens =
               pop l (fun () ->
                   pop_until
                     (function
-                      | { element_name = `HTML, _ } -> true
+                      | { element_name = HTML, _ } -> true
                       | { is_html_integration_point = true } -> true
                       | { element_name } ->
                           Foreign.is_mathml_text_integration_point element_name)
@@ -2678,7 +2678,7 @@ let parse ?depth_limit requested_context report tokens =
     | l, `Start t -> foreign_start_tag mode l t
     | l, `End { name = "script" }
       when match Stack.current_element open_elements with
-           | Some { element_name = `SVG, "script" } -> true
+           | Some { element_name = SVG, "script" } -> true
            | _ -> false ->
         pop l mode
     | l, `End { name } ->
@@ -2694,7 +2694,7 @@ let parse ?depth_limit requested_context report tokens =
               | { element_name = ns, name' } :: _
                 when String.lowercase_ascii name' = name ->
                   close_element ~ns l name mode
-              | { element_name = `HTML, _ } :: _ -> force_html ()
+              | { element_name = HTML, _ } :: _ -> force_html ()
               | _ :: rest -> scan rest
             in
             scan !(Stack.elements open_elements))
