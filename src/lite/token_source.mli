@@ -3,7 +3,11 @@
 
 open Common
 
-type location_out = { mutable line : int; mutable column : int }
+type location_out = Markup__Html_tokenizer.location_out = {
+  mutable line : int;
+  mutable column : int;
+}
+
 type t
 
 exception End_of_input
