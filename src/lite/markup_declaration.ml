@@ -8,7 +8,14 @@
 
 open Common
 
-type result = { token : Html_tokenizer.token; next : int }
+type result = {
+  token : Html_tokenizer.token;
+  next : int;
+  (* Byte count after [next] that the caller must ASCII-lowercase in the
+     input, mirroring baseline's lowercased pushback of the six-codepoint
+     PUBLIC/SYSTEM lookahead. *)
+  lowercase : int;
+}
 
 let u_rep_utf_8 = "\xEF\xBF\xBD"
 
@@ -44,13 +51,14 @@ let bogus_comment data start =
   let buffer = Buffer.create 32 in
   let rec consume index =
     if index >= length then
-      { token = Html_tokenizer.Comment (Buffer.contents buffer); next = index }
+      { token = Html_tokenizer.Comment (Buffer.contents buffer); next = index; lowercase = 0 }
     else
       match data.[index] with
       | '>' ->
           {
             token = Html_tokenizer.Comment (Buffer.contents buffer);
             next = index + 1;
+            lowercase = 0;
           }
       | byte ->
           add buffer byte;
@@ -62,7 +70,7 @@ let comment data start =
   let length = String.length data in
   let buffer = Buffer.create 64 in
   let finish index =
-    { token = Html_tokenizer.Comment (Buffer.contents buffer); next = index }
+    { token = Html_tokenizer.Comment (Buffer.contents buffer); next = index; lowercase = 0 }
   in
   let rec comment_start index =
     if index >= length then finish index
@@ -134,6 +142,7 @@ let doctype data start =
   let public_identifier = ref None in
   let system_identifier = ref None in
   let quirks = ref false in
+  let lowercase = ref 0 in
   let add_to field byte =
     let buffer =
       match !field with
@@ -154,7 +163,7 @@ let doctype data start =
     in
     {
       token =
-        Html_tokenizer.Doctype
+        `Doctype
           {
             doctype_name = contents name;
             public_identifier = contents public_identifier;
@@ -163,6 +172,7 @@ let doctype data start =
             force_quirks = !quirks;
           };
       next = index;
+      lowercase = !lowercase;
     }
   in
   let rec doctype_start index =
@@ -201,7 +211,36 @@ let doctype data start =
         after_system_keyword (index + 6)
       else begin
         quirks := true;
-        bogus index
+        (* Baseline reads the keyword lookahead as six codepoints and pushes
+           it back lowercased (after_doctype_name_state), so window bytes
+           past a terminating '>' come back lowercased. *)
+        let rec window_end count index =
+          if count = 0 || index >= length then index
+          else
+            let width =
+              if data.[index] < '\x80' then 1
+              else if data.[index] < '\xE0' then 2
+              else if data.[index] < '\xF0' then 3
+              else 4
+            in
+            window_end (count - 1) (min length (index + width))
+        in
+        let window_end = window_end 6 index in
+        let rec find_gt index =
+          if index >= window_end then None
+          else if data.[index] = '>' then Some index
+          else find_gt (index + 1)
+        in
+        match find_gt index with
+        | None -> bogus window_end
+        | Some gt ->
+            let rec has_upper index =
+              index < window_end
+              && (('A' <= data.[index] && data.[index] <= 'Z')
+                 || has_upper (index + 1))
+            in
+            if has_upper (gt + 1) then lowercase := window_end - (gt + 1);
+            finish (gt + 1)
       end
   and after_public_keyword index =
     if index >= length then finish ~force_quirks:true index
@@ -320,7 +359,9 @@ let doctype data start =
 let cdata data start =
   let length = String.length data in
   let buffer = Buffer.create 64 in
-  let finish next = { token = `String (Buffer.contents buffer); next } in
+  let finish next =
+    { token = Html_tokenizer.String (Buffer.contents buffer); next; lowercase = 0 }
+  in
   let rec consume index =
     if index >= length then finish index
     else if

@@ -13,7 +13,9 @@ type location_out = {
 }
 
 type t = {
-  data : string;
+  mutable data : string;
+  (* Whether [data] is a private copy that may be mutated in place. *)
+  mutable data_owned : bool;
   cs : int ref;
   p : int ref;
   pe : int ref;
@@ -150,6 +152,7 @@ let create data =
   %%write init;
   let length = String.length data in
   {data;
+   data_owned = false;
    cs;
    p = ref 0;
    pe = ref length;
@@ -257,6 +260,21 @@ let run scanner foreign =
     for index = start to result.Markup_declaration.next - 1 do
       if data.[index] = '\n' then scanner.line <- scanner.line + 1
     done;
+    if result.Markup_declaration.lowercase > 0 then begin
+      let bytes =
+        if scanner.data_owned then Bytes.unsafe_of_string scanner.data
+        else begin
+          let copy = Bytes.of_string scanner.data in
+          scanner.data <- Bytes.unsafe_to_string copy;
+          scanner.data_owned <- true;
+          copy
+        end
+      in
+      let next = result.Markup_declaration.next in
+      for index = next to next + result.Markup_declaration.lowercase - 1 do
+        Bytes.set bytes index (Char.lowercase_ascii (Bytes.get bytes index))
+      done
+    end;
     p := result.Markup_declaration.next;
     cs := htmlstream_en_main;
     if !p >= !eof then scanner.finished <- true

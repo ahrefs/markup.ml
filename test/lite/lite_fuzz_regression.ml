@@ -84,6 +84,24 @@ let tree_builder_failures =
       "<table><td><b><table><td><svg></td><script></script><><tr/><tr><td><svg></td></tr>M<P></b>";
   ]
 
+let doctype_lookahead_failures =
+  [
+    ("keyword mismatch tail lowercased", "<!doctype a b>XYZw");
+    ("fuzzer case", "<!doctype hte html>L~tmlml><stml><he");
+    ("multibyte window", "<!doctype a X\xc3\xa9>ABCD");
+    ("entity started in window", "<!doctype a b>&LT;a");
+  ]
+  |> List.map (fun (name, html) -> agrees name html)
+
+let doctype_lookahead_guards =
+  [
+    ("public keyword", "<!doctype a public 'x'>YZ");
+    ("gt outside window", "<!doctype a bcdefgh>XY");
+    ("eof inside window", "<!doctype a b>X");
+    ("lowercase tail", "<!doctype a b>xyz<B>T");
+  ]
+  |> List.map (fun (name, html) -> agrees name html)
+
 let () =
   run_test_tt_main
     ("Lite fuzz regressions"
@@ -93,4 +111,6 @@ let () =
            "entity chunk fallback" >::: entity_failures;
            "entity guards" >::: entity_guards;
            "tree-builder invariants" >::: tree_builder_failures;
+           "doctype keyword lookahead" >::: doctype_lookahead_failures;
+           "doctype lookahead guards" >::: doctype_lookahead_guards;
          ])
