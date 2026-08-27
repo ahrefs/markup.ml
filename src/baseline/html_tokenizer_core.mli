@@ -20,14 +20,3 @@ val tokenize :
     (location * token) Kstream.t *
     (state -> unit) *
     ((unit -> bool) -> unit)
-
-type location_out = { mutable line : int; mutable column : int }
-type pull
-
-val create_pull :
-  Error.parse_handler ->
-  (location * int) Kstream.t * (unit -> location) -> pull
-
-val next : pull -> location_out -> token
-val set_state : pull -> state -> unit
-val set_foreign : pull -> (unit -> bool) -> unit

@@ -1527,33 +1527,3 @@ let tokenize report (input, get_location) =
   let set_foreign = ( := ) foreign in
 
   (stream, set_state, set_foreign)
-
-type location_out = { mutable line : int; mutable column : int }
-
-type pull = {
-  stream : (location * token) Kstream.t;
-  change_state : state -> unit;
-  change_foreign : (unit -> bool) -> unit;
-}
-
-let create_pull report input =
-  let stream, change_state, change_foreign = tokenize report input in
-  { stream; change_state; change_foreign }
-
-let next pull (out : location_out) =
-  let result = ref None in
-  Kstream.next pull.stream
-    (fun exn -> result := Some (`Exception exn))
-    (fun () -> result := Some `End)
-    (fun token -> result := Some (`Token token));
-  match !result with
-  | Some (`Token ((line, column), token)) ->
-      out.line <- line;
-      out.column <- column;
-      token
-  | Some (`Exception exn) -> raise exn
-  | Some `End -> failwith "tokenizer ended without an EOF token"
-  | None -> failwith "tokenizer did not resume synchronously"
-
-let set_state pull state = pull.change_state state
-let set_foreign pull foreign = pull.change_foreign foreign
