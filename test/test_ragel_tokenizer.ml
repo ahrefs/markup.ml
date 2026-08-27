@@ -1,5 +1,7 @@
 open OUnit2
 
+module Ragel_html_tokenizer = Test_support.Ragel_html_tokenizer
+
 let tag name attributes : Markup__Common.Token_tag.t =
   {name; attributes; self_closing = false}
 

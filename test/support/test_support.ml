@@ -6,6 +6,8 @@ open Markup__Common
 module Text = Markup__Text
 module Error = Markup__Error
 module Kstream = Markup__Kstream
+module Ragel_html_tokenizer = Ragel_html_tokenizer
+module Ragel_token_snapshot = Ragel_token_snapshot
 
 let sprintf = Printf.sprintf
 let wrong_k message _ = assert_failure message

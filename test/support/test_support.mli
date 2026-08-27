@@ -3,6 +3,19 @@
 
 open Markup__Common
 
+module Ragel_html_tokenizer : sig
+  val tokenize :
+    string -> (Markup__Common.location * Markup__Html_tokenizer.token) list
+end
+
+module Ragel_token_snapshot : sig
+  type t = {
+    source : string;
+    input : string option;
+    tokens : (Markup__Common.location * Markup__Html_tokenizer.token) list;
+  }
+end
+
 val wrong_k : string -> _ cont
 val with_text_limit : int -> (unit -> unit) -> unit
 
