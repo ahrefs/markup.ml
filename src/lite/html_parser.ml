@@ -224,12 +224,15 @@ end = struct
   let initialize requested_context state _throw k =
     let context =
       match requested_context with
-      | `Fragment element ->
+      | `Fragment element -> (
           (* HTML element names are case-insensitive, even in foreign content.
            Lowercase the element name given by the user before analysis by the
            parser, to match this convention. [String.lowercase] is acceptable
            here because the API assumes the string [element] is in UTF-8. *)
-          Fragment (HTML, String.lowercase_ascii element)
+          match String.lowercase_ascii element with
+          | "math" -> Fragment (MathML, "math")
+          | "svg" -> Fragment (SVG, "svg")
+          | element -> Fragment (HTML, element))
       | `Document -> Document
     in
     let context_element =
