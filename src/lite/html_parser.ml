@@ -2361,6 +2361,7 @@ let parse ?depth_limit requested_context report tokens =
               close_cell l (fun () ->
                   Active.clear_until_marker active_formatting_elements;
                   push tokens v;
+                  current_mode := in_row_mode;
                   in_row_mode ())
         | ( l,
             `End
@@ -2379,6 +2380,7 @@ let parse ?depth_limit requested_context report tokens =
               close_cell l (fun () ->
                   Active.clear_until_marker active_formatting_elements;
                   push tokens v;
+                  current_mode := in_row_mode;
                   in_row_mode ())
         | l, `Start ({ name = "select" } as t) ->
             select_in_body l t in_select_in_table_mode

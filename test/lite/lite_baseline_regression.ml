@@ -40,17 +40,10 @@ let agrees_with_text ?(context = `Document) name html text =
          | `Text strings -> String.concat "" strings = text | _ -> false)
        actual)
 
-let disagrees ?(context = `Document) name html =
-  name >:: fun _ ->
-  assert_bool "baseline and lite now agree; promote this test to [agrees]"
-    (baseline context html <> lite context html)
-
-(* FIXME *)
-(* this input makes the parser loop forever (misnested math/tr in row mode) *)
+(* Baseline also loops on this input, so only require Lite to terminate. *)
 let terminates =
   "in row misnested math" >:: fun _ ->
-  if false then
-    ignore (lite `Document "<table><tr><math></tr><td><tr><b><math>0")
+  ignore (lite `Document "<table><tr><math></tr><td><tr><b><math>0")
 
 let () =
   run_test_tt_main
@@ -219,5 +212,5 @@ let () =
                   agrees ~context:(`Fragment "svg") "complete candidate"
                     "<p></p><style></x>";
                 ];
-           "known non-termination" >::: [ terminates ];
+           "termination" >::: [ terminates ];
          ])
