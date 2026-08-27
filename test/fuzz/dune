@@ -11,4 +11,4 @@
 (executable
  (name tokenizer_diff_fuzz)
  (modules tokenizer_diff_fuzz)
- (libraries containers tokenizer_diff markup))
+ (libraries containers tokenizer_diff markup markup.lite))

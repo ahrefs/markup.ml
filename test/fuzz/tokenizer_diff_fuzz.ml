@@ -68,9 +68,113 @@ let check_script input =
   let reference, candidate = script ~eof_location scalars commands in
   if reference <> candidate then failwith "scripted tokenizer mismatch"
 
+let token_tag byte =
+  let names = [| "p"; "table"; "tr"; "td"; "svg"; "math"; "b"; "script" |] in
+  Markup_lite.Token_tag.
+    {
+      name = names.(byte mod Array.length names);
+      attributes =
+        (if byte land 8 = 0 then []
+         else [ ("a", String.make 1 (Char.chr byte)) ]);
+      self_closing = byte land 16 <> 0;
+    }
+
+let token byte =
+  match byte mod 8 with
+  | 0 -> `Char byte
+  | 1 -> `String (String.make 1 (Char.chr byte))
+  | 2 -> `Start (token_tag byte)
+  | 3 -> `End (token_tag byte)
+  | 4 -> `Comment (String.make 1 (Char.chr byte))
+  | 5 ->
+      `Doctype
+        {
+          Markup_common.doctype_name = Some "html";
+          public_identifier = None;
+          system_identifier = None;
+          raw_text = None;
+          force_quirks = byte land 8 <> 0;
+        }
+  | 6 -> `String "\x00\x0C<![CDATA[x]]>"
+  | _ -> `EOF
+
+let baseline_tag (tag : Markup_lite.Token_tag.t) =
+  Markup.Internals.Token_tag.
+    {
+      name = tag.name;
+      attributes = tag.attributes;
+      self_closing = tag.self_closing;
+    }
+
+let baseline_token : Markup_lite.token -> Markup.Internals.token = function
+  | `Start tag -> `Start (baseline_tag tag)
+  | `End tag -> `End (baseline_tag tag)
+  | (`Doctype _ | `Char _ | `String _ | `Comment _ | `EOF) as token -> token
+
+let check_token_parser input =
+  let tokens =
+    String.to_seq input |> List.of_seq
+    |> List.mapi (fun index byte ->
+        ((1 + (index mod 13), 1 + (index mod 67)), token (Char.code byte)))
+  in
+  let tokens =
+    if String.length input > 0 && Char.code input.[0] land 4 <> 0 then tokens
+    else tokens @ [ ((1, String.length input + 1), `EOF) ]
+  in
+  let context =
+    if String.length input > 1 && Char.code input.[1] land 1 <> 0 then
+      `Fragment "table"
+    else `Document
+  in
+  let baseline () =
+    let reports = ref [] in
+    let signals =
+      tokens
+      |> List.map (fun (location, token) -> (location, baseline_token token))
+      |> Markup.Internals.parse_tokens ~depth_limit:60 ~context
+           ~report:(fun location error ->
+             reports := (location, error) :: !reports)
+      |> Markup.signals |> Markup.to_list
+    in
+    (signals, List.rev !reports)
+  in
+  let lite () =
+    let reports = ref [] in
+    let signals = ref [] in
+    Markup_lite.parse_tokens ~depth_limit:60 ~context
+      ~report:(fun location error -> reports := (location, error) :: !reports)
+      tokens
+    |> Markup_lite.iter (fun signal -> signals := signal :: !signals);
+    (List.rev !signals, List.rev !reports)
+  in
+  let outcome run =
+    try `Parsed (run ()) with exn -> `Raised (Printexc.to_string exn)
+  in
+  let expected = outcome baseline in
+  let actual = outcome lite in
+  if expected <> actual then begin
+    let summarize = function
+      | `Raised message -> "raised " ^ message
+      | `Parsed (signals, reports) ->
+          let rendered =
+            signals
+            |> List.map Markup_common.signal_to_string
+            |> String.concat " | "
+          in
+          Printf.sprintf "parsed %d signals/%d reports: %s"
+            (List.length signals) (List.length reports) rendered
+    in
+    failwith
+      (Printf.sprintf "parse_tokens mismatch: baseline %s; lite %s"
+         (summarize expected) (summarize actual))
+  end
+
 let check input =
-  if String.length input = 0 || Char.code input.[0] land 1 = 0 then
-    check_raw input
-  else check_script input
+  if String.length input = 0 then check_raw input
+  else
+    match Char.code input.[0] land 3 with
+    | 0 -> check_raw input
+    | 1 -> check_script input
+    | _ -> check_token_parser input
 
 let () = match read_input () with Some input -> check input | None -> ()
