@@ -8,7 +8,8 @@
  (public_name markup.lite)
  (synopsis "Small fast synchronous HTML parser")
  (private_modules common error html_entity_decoder html_parser html_tokenizer
-   html_writer kstream namespace ragel_html_tokenizer text token_source)
+   html_writer kstream markup_declaration namespace ragel_html_tokenizer text
+   token_source)
  (libraries markup.common markup.entities uutf)
  (flags
   (:standard -w -9)))

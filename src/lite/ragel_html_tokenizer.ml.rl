@@ -23,7 +23,7 @@ type t = {
   tag : string ref;
   key : string ref;
   attrs : (string * string) list ref;
-  directive : string ref;
+  mutable declaration : int;
   mutable line : int;
   tokens : Html_tokenizer.token array;
   lines : int array;
@@ -64,7 +64,6 @@ let emit_many scanner tokens =
    emit scanner (End (make_tag name []));
    pause ();
  }
- action directive { directive := String.lowercase_ascii @@ sub (); attrs := []; }
  action text {
    emit scanner (String (decode (sub ())));
    pause ();
@@ -98,7 +97,7 @@ let emit_many scanner tokens =
      pause ();
      fgoto main;
  }
- action directive_done { }
+ action markup_declaration { scanner.declaration <- !p; pe := !p + 1; }
 
  action garbage_tag { fhold; fgoto garbage_tag; }
 
@@ -146,11 +145,9 @@ let emit_many scanner tokens =
  close_tag = '/' wsp* tag_name? >mark %close_tag <: ^'>'* '>';
  open_tag = tag_name >mark %tag <: wsp* tag_attrs
    ('/' wsp* '>' %tag_done_2 | '>' %tag_done);
- directive = ('!'|'?') (alnum ident+) >mark %directive <:
-   wsp* tag_attrs '?'? '>' %directive_done;
- comment = "!--" any* :>> "-->";
+ declaration = ('!'|'?') @markup_declaration;
  tag = '<' wsp* <:
-   (close_tag | open_tag | directive | comment)
+   (close_tag | open_tag | declaration)
    @lerr(garbage_tag) >{ tag := "" };
  main := (((tag | ^'<' >mark ^'<'* %text ) )** | count_newlines);
 
@@ -171,7 +168,7 @@ let create data =
    tag = ref "";
    key = ref "";
    attrs = ref [];
-   directive = ref "";
+   declaration = (-1);
    line = 1;
    tokens = Array.make buffer_capacity EOF;
    lines = Array.make buffer_capacity 1;
@@ -190,7 +187,6 @@ let run scanner =
   let tag = scanner.tag in
   let key = scanner.key in
   let attrs = scanner.attrs in
-  let directive = scanner.directive in
   pe := !eof;
   let pause () =
     if scanner.write >= buffer_capacity - maximum_transition_output &&
@@ -209,9 +205,24 @@ let run scanner =
     mark_end := -1;
     text
   in
-  %%write exec;
-  if !p >= !eof then scanner.finished <- true
-  else if scanner.write = 0 then scanner.finished <- true
+  if scanner.declaration >= 0 then begin
+    let start = scanner.declaration in
+    scanner.declaration <- (-1);
+    let result = Markup_declaration.scan data start in
+    emit scanner result.Markup_declaration.token;
+    for index = start to result.Markup_declaration.next - 1 do
+      if data.[index] = '\n' then scanner.line <- scanner.line + 1
+    done;
+    p := result.Markup_declaration.next;
+    cs := htmlstream_en_main;
+    if !p >= !eof then scanner.finished <- true
+  end
+  else begin
+    %%write exec;
+    if scanner.declaration >= 0 then ()
+    else if !p >= !eof then scanner.finished <- true
+    else if scanner.write = 0 then scanner.finished <- true
+  end
 
 let rec next scanner (_state : Html_tokenizer.state)
     (location : location_out) =
