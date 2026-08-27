@@ -8,14 +8,15 @@ let html_files directory =
     match files () with
     | None -> List.sort String.compare acc
     | Some path ->
-      let path = CCIO.File.to_string path in
-      collect (if Filename.check_suffix path ".html" then path::acc else acc)
+        let path = CCIO.File.to_string path in
+        collect
+          (if Filename.check_suffix path ".html" then path :: acc else acc)
   in
   collect []
 
 let collect stream =
   let signals = ref [] in
-  Markup_lite.iter (fun signal -> signals := signal::!signals) stream;
+  Markup_lite.iter (fun signal -> signals := signal :: !signals) stream;
   List.rev !signals
 
 type stats = {
@@ -24,8 +25,7 @@ type stats = {
   mutable major_words : float;
 }
 
-let empty_stats () =
-  {wall_seconds = 0.; minor_words = 0.; major_words = 0.}
+let empty_stats () = { wall_seconds = 0.; minor_words = 0.; major_words = 0. }
 
 let measure stats f =
   let gc_before = Gc.quick_stat () in
@@ -41,10 +41,7 @@ let measure stats f =
   result
 
 let write_with_markup signals =
-  signals
-  |> Markup.of_list
-  |> Markup.write_html
-  |> Markup.to_string
+  signals |> Markup.of_list |> Markup.write_html |> Markup.to_string
 
 let write_with_lite signals =
   let buffer = Buffer.create 4096 in
@@ -53,23 +50,27 @@ let write_with_lite signals =
 
 let check_escape_regressions () =
   let cases =
-    [ "ASCII-safe", [`Text ["plain text"]];
-      "ASCII escapes", [`Text ["<&>"]];
-      "attribute escapes",
-        [`Start_element ((Markup.Ns.html, "p"), [("", "title"), "a&\"b"]);
-         `End_element];
-      "UTF-8 and non-breaking space", [`Text ["été\xC2\xA0東京"]];
-      "malformed UTF-8", [`Text ["before\xFFafter"]] ]
+    [
+      ("ASCII-safe", [ `Text [ "plain text" ] ]);
+      ("ASCII escapes", [ `Text [ "<&>" ] ]);
+      ( "attribute escapes",
+        [
+          `Start_element ((Markup.Ns.html, "p"), [ (("", "title"), "a&\"b") ]);
+          `End_element;
+        ] );
+      ("UTF-8 and non-breaking space", [ `Text [ "été\xC2\xA0東京" ] ]);
+      ("malformed UTF-8", [ `Text [ "before\xFFafter" ] ]);
+    ]
   in
-  List.iter (fun (name, signals) ->
-    let markup = write_with_markup signals in
-    let lite = write_with_lite signals in
-    if markup <> lite then begin
-      Printf.eprintf
-        "%s escape regression:\n  Markup: %S\n  Lite:   %S\n"
-        name markup lite;
-      exit 1
-    end)
+  List.iter
+    (fun (name, signals) ->
+      let markup = write_with_markup signals in
+      let lite = write_with_lite signals in
+      if markup <> lite then begin
+        Printf.eprintf "%s escape regression:\n  Markup: %S\n  Lite:   %S\n"
+          name markup lite;
+        exit 1
+      end)
     cases
 
 let check_buffer_api () =
@@ -80,16 +81,17 @@ let check_buffer_api () =
     Buffer.add_char buffer ')'
   in
   let signals =
-    [`Start_element ((Markup.Ns.html, "p"), [("", "id"), "x"]);
-     `Text ["y"];
-     `End_element]
+    [
+      `Start_element ((Markup.Ns.html, "p"), [ (("", "id"), "x") ]);
+      `Text [ "y" ];
+      `End_element;
+    ]
   in
   let buffer = Buffer.create 64 in
   Buffer.add_string buffer "prefix:";
-  Markup_lite.write_html
-    ~escape_attribute:(wrap "A") ~escape_text:(wrap "T")
+  Markup_lite.write_html ~escape_attribute:(wrap "A") ~escape_text:(wrap "T")
     buffer (Markup.of_list signals);
-  Markup_lite.write_html buffer (Markup.of_list [`Text ["<&"]]);
+  Markup_lite.write_html buffer (Markup.of_list [ `Text [ "<&" ] ]);
   let expected = "prefix:<p id=\"A(x)\">T(y)</p>&lt;&amp;" in
   if Buffer.contents buffer <> expected then begin
     Printf.eprintf "buffer API check failed:\n  expected: %S\n  actual:   %S\n"
@@ -114,12 +116,18 @@ let difference left right =
   in
   if index = limit then
     Printf.sprintf
-      "output lengths differ at byte %d (Markup: %d, Lite: %d)\n  Markup: %S\n  Lite:   %S"
+      "output lengths differ at byte %d (Markup: %d, Lite: %d)\n\
+      \  Markup: %S\n\
+      \  Lite:   %S"
       index left_length right_length (context left) (context right)
   else
     Printf.sprintf
-      "output differs at byte %d (Markup: 0x%02X, Lite: 0x%02X)\n  Markup: %S\n  Lite:   %S"
-      index (Char.code left.[index]) (Char.code right.[index])
+      "output differs at byte %d (Markup: 0x%02X, Lite: 0x%02X)\n\
+      \  Markup: %S\n\
+      \  Lite:   %S"
+      index
+      (Char.code left.[index])
+      (Char.code right.[index])
       (context left) (context right)
 
 let () =
@@ -127,7 +135,7 @@ let () =
   check_buffer_api ();
   let directory =
     match Array.to_list Sys.argv with
-    | [_; directory] -> directory
+    | [ _; directory ] -> directory
     | _ -> usage Sys.argv.(0)
   in
   let files = html_files directory in
@@ -138,31 +146,38 @@ let () =
   let failures = ref 0 in
   let markup_stats = empty_stats () in
   let lite_stats = empty_stats () in
-  List.iteri (fun index path ->
-    let html = CCIO.File.read_exn (CCIO.File.make path) in
-    let signals = collect (Markup_lite.parse_html html) in
-    let markup, lite =
-      if index mod 2 = 0 then begin
-        let markup = measure markup_stats (fun () -> write_with_markup signals) in
-        let lite = measure lite_stats (fun () -> write_with_lite signals) in
-        markup, lite
-      end
-      else begin
-        let lite = measure lite_stats (fun () -> write_with_lite signals) in
-        let markup = measure markup_stats (fun () -> write_with_markup signals) in
-        markup, lite
-      end
-    in
-    if markup <> lite then begin
-      incr failures;
-      Printf.eprintf "%s: %s\n" path (difference markup lite)
-    end;
-    if (index + 1) mod 100 = 0 then
-      Printf.eprintf "checked %d/%d\r%!" (index + 1) (List.length files))
+  List.iteri
+    (fun index path ->
+      let html = CCIO.File.read_exn (CCIO.File.make path) in
+      let signals = collect (Markup_lite.parse_html html) in
+      let markup, lite =
+        if index mod 2 = 0 then begin
+          let markup =
+            measure markup_stats (fun () -> write_with_markup signals)
+          in
+          let lite = measure lite_stats (fun () -> write_with_lite signals) in
+          (markup, lite)
+        end
+        else begin
+          let lite = measure lite_stats (fun () -> write_with_lite signals) in
+          let markup =
+            measure markup_stats (fun () -> write_with_markup signals)
+          in
+          (markup, lite)
+        end
+      in
+      if markup <> lite then begin
+        incr failures;
+        Printf.eprintf "%s: %s\n" path (difference markup lite)
+      end;
+      if (index + 1) mod 100 = 0 then
+        Printf.eprintf "checked %d/%d\r%!" (index + 1) (List.length files))
     files;
   Printf.eprintf "checked %d/%d\n%!" (List.length files) (List.length files);
   Printf.printf
-    "markup writer: wall_seconds=%.6f minor_words=%.0f major_words=%.0f\nlite writer:   wall_seconds=%.6f minor_words=%.0f major_words=%.0f\n%!"
+    "markup writer: wall_seconds=%.6f minor_words=%.0f major_words=%.0f\n\
+     lite writer:   wall_seconds=%.6f minor_words=%.0f major_words=%.0f\n\
+     %!"
     markup_stats.wall_seconds markup_stats.minor_words markup_stats.major_words
     lite_stats.wall_seconds lite_stats.minor_words lite_stats.major_words;
   if !failures <> 0 then begin

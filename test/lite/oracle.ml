@@ -9,10 +9,10 @@ let tokenize html : (Markup.location * Markup.Internals.token) list =
   let tokens = ref [] in
   let emit token = tokens := ((HS.get_lnum ctx, -1), token) :: !tokens in
   let attributes attrs =
-    List.rev_map (fun (name, value) -> name, decode value) attrs
+    List.rev_map (fun (name, value) -> (name, decode value)) attrs
   in
   let tag name attributes : Markup.Internals.Token_tag.t =
-    {name; attributes; self_closing = false}
+    { name; attributes; self_closing = false }
   in
   let step = function
     | HS.Text raw -> emit (`String (decode raw))
@@ -20,13 +20,13 @@ let tokenize html : (Markup.location * Markup.Internals.token) list =
     | HS.Close "br" -> ()
     | HS.Close name -> emit (`End (tag name []))
     | HS.Script (attrs, text) ->
-      emit (`Start (tag "script" (attributes attrs)));
-      emit (`String text);
-      emit (`End (tag "script" []))
+        emit (`Start (tag "script" (attributes attrs)));
+        emit (`String text);
+        emit (`End (tag "script" []))
     | HS.Style (attrs, text) ->
-      emit (`Start (tag "style" (attributes attrs)));
-      emit (`String text);
-      emit (`End (tag "style" []))
+        emit (`Start (tag "style" (attributes attrs)));
+        emit (`String text);
+        emit (`End (tag "style" []))
   in
   HS.parse ~ctx step html;
   emit `EOF;
