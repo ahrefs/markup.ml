@@ -1349,6 +1349,7 @@ let parse ?depth_limit requested_context report tokens =
   (* 8.2.5. *)
   and dispatch tokens rules =
     match next_token tokens with
+    | exception Token_source.End_of_input -> !ended ()
     | (_, t) as v ->
         let foreign =
           match (Stack.adjusted_current_element context open_elements, t) with
@@ -1719,6 +1720,7 @@ let parse ?depth_limit requested_context report tokens =
                 | v ->
                     push tokens v;
                     mode ()
+                | exception Token_source.End_of_input -> !ended ()
                 | exception exn -> !throw exn))
     | l, `Start ({ name = "form" } as t) ->
         if
@@ -1920,6 +1922,7 @@ let parse ?depth_limit requested_context report tokens =
             | v ->
                 push tokens v;
                 text_mode mode
+            | exception Token_source.End_of_input -> !ended ()
             | exception exn -> !throw exn)
     | l, `Start { name = "xmp" } ->
         frameset_ok := false;

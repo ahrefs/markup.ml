@@ -4,12 +4,15 @@
 type location_out = { mutable line : int; mutable column : int }
 type pushed_token = { token : Html_tokenizer.token; line : int; column : int }
 
+exception End_of_input
+
 type t = {
   stream :
     (Markup_common.location * Markup__Html_tokenizer.token) Markup__Kstream.t;
   set_state : Markup__Html_tokenizer.state -> unit;
   set_foreign : (unit -> bool) -> unit;
   mutable pushed : pushed_token list;
+  end_on_empty : bool;
 }
 
 let create report html =
@@ -21,14 +24,20 @@ let create report html =
   let stream, set_state, set_foreign =
     Markup__Html_tokenizer.tokenize report (input, get_location)
   in
-  { stream; set_state; set_foreign; pushed = [] }
+  { stream; set_state; set_foreign; pushed = []; end_on_empty = false }
 
 let of_tokens tokens =
   let pushed =
     List.map (fun ((line, column), token) -> { token; line; column }) tokens
   in
   let stream = Markup__Kstream.empty () in
-  { stream; set_state = ignore; set_foreign = ignore; pushed }
+  {
+    stream;
+    set_state = ignore;
+    set_foreign = ignore;
+    pushed;
+    end_on_empty = true;
+  }
 
 let location () = { line = 1; column = -1 }
 
@@ -49,6 +58,7 @@ let next source state (out : location_out) =
       out.line <- line;
       out.column <- column;
       token
+  | [] when source.end_on_empty -> raise End_of_input
   | [] ->
       begin match state with
       | Html_tokenizer.Data -> ()

@@ -6,6 +6,8 @@ open Common
 type location_out = { mutable line : int; mutable column : int }
 type t
 
+exception End_of_input
+
 val create : Error.parse_handler -> string -> t
 val of_tokens : (location * Html_tokenizer.token) list -> t
 val location : unit -> location_out

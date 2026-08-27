@@ -175,6 +175,11 @@ let () =
                                String.concat "" strings = "a\x00b"
                            | _ -> false)
                          signals) );
+                  ( "missing eof" >:: fun _ ->
+                    let signals =
+                      lite_tokens `Document [ ((1, 1), `String "x") ]
+                    in
+                    assert_equal 4 (List.length signals) );
                   ( "report location" >:: fun _ ->
                     let reports = ref [] in
                     let tokens =
