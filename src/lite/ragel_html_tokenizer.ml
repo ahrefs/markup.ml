@@ -2258,6 +2258,38 @@ let run scanner =
               pause ()
           end
           end
+          else if _htmlstream_cond_actions.(_trans.contents) = 39 then begin
+            begin match !tag with
+            | "script" ->
+                begin
+                  p := p.contents - 1
+                end;
+                begin
+                  cs := 41
+                end
+            | "style" ->
+                begin
+                  p := p.contents - 1
+                end;
+                begin
+                  cs := 52
+                end
+            | "title" ->
+                begin
+                  p := p.contents - 1
+                end;
+                begin
+                  cs := 62
+                end
+            | "" -> begin cs := 0 end
+            | name ->
+                emit scanner (Start (make_tag name (attributes !attrs)));
+                pause ();
+                begin
+                  cs := 0
+                end
+          end
+          end
           else if _htmlstream_cond_actions.(_trans.contents) = 18 then begin
             begin end
           end
@@ -2409,40 +2441,6 @@ let run scanner =
             end;
             begin
               mark := !p
-            end
-          end
-          else if _htmlstream_cond_actions.(_trans.contents) = 39 then begin
-            begin match !tag with
-            | "script" ->
-                begin
-                  p := p.contents - 1
-                end;
-                begin
-                  cs := 41
-                end
-            | "style" ->
-                begin
-                  p := p.contents - 1
-                end;
-                begin
-                  cs := 52
-                end
-            | "title" ->
-                begin
-                  p := p.contents - 1
-                end;
-                begin
-                  cs := 62
-                end
-            | "" -> ()
-            | name ->
-                emit scanner (Start (make_tag name (attributes !attrs)));
-                pause ()
-            end;
-            begin
-              begin
-                cs := 0
-              end
             end
           end
           else if _htmlstream_cond_actions.(_trans.contents) = 27 then begin
