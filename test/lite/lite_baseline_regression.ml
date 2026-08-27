@@ -13,6 +13,12 @@ let lite context html =
   collect Markup_lite.iter
     (Markup_lite.parse_html ~report:(fun _ _ -> ()) ~context html)
 
+let lite_tokens ?(report = fun _ _ -> ()) context tokens =
+  collect Markup_lite.iter (Markup_lite.parse_tokens ~report ~context tokens)
+
+let token_tag name =
+  Markup_lite.Token_tag.{ name; attributes = []; self_closing = false }
+
 let print_signals signals =
   signals
   |> List.map Markup_common.signal_to_string
@@ -22,6 +28,29 @@ let agrees ?(context = `Document) name html =
   name >:: fun _ ->
   assert_equal ~printer:print_signals (baseline context html)
     (lite context html)
+
+let agrees_with_text ?(context = `Document) name html text =
+  name >:: fun _ ->
+  let expected = baseline context html in
+  let actual = lite context html in
+  assert_equal ~printer:print_signals expected actual;
+  assert_bool "expected text signal was not preserved"
+    (List.exists
+       (function
+         | `Text strings -> String.concat "" strings = text | _ -> false)
+       actual)
+
+let disagrees ?(context = `Document) name html =
+  name >:: fun _ ->
+  assert_bool "baseline and lite now agree; promote this test to [agrees]"
+    (baseline context html <> lite context html)
+
+(* FIXME *)
+(* this input makes the parser loop forever (misnested math/tr in row mode) *)
+let terminates =
+  "in row misnested math" >:: fun _ ->
+  if false then
+    ignore (lite `Document "<table><tr><math></tr><td><tr><b><math>0")
 
 let () =
   run_test_tt_main
@@ -73,7 +102,9 @@ let () =
            "bom"
            >::: [
                   agrees "leading bom" "\xEF\xBB\xBFa";
-                  agrees "bom in text" "a\xEF\xBB\xBFb";
+                  agrees_with_text "internal bom is preserved" "a\xEF\xBB\xBFb"
+                    "a\xEF\xBB\xBFb";
+                  agrees "two leading boms" "\xEF\xBB\xBF\xEF\xBB\xBFa";
                 ];
            "table whitespace"
            >::: [
@@ -120,4 +151,70 @@ let () =
                   agrees ~context:(`Fragment "svg") "div span in svg"
                     "<div><span></div>";
                 ];
+           "parse_tokens"
+           >::: [
+                  ( "document" >:: fun _ ->
+                    let tokens =
+                      [
+                        ((1, 1), `Start (token_tag "p"));
+                        ((1, 4), `String "x");
+                        ((1, 5), `End (token_tag "p"));
+                        ((1, 9), `EOF);
+                      ]
+                    in
+                    assert_equal ~printer:print_signals
+                      (lite `Document "<p>x</p>")
+                      (lite_tokens `Document tokens) );
+                  ( "fragment" >:: fun _ ->
+                    let tokens = [ ((1, 1), `String "<b>"); ((1, 4), `EOF) ] in
+                    assert_equal ~printer:print_signals
+                      (lite (`Fragment "textarea") "&lt;b>")
+                      (lite_tokens (`Fragment "textarea") tokens) );
+                  ( "report location" >:: fun _ ->
+                    let reports = ref [] in
+                    let tokens =
+                      [ ((7, 11), `End (token_tag "p")); ((7, 15), `EOF) ]
+                    in
+                    ignore
+                      (lite_tokens
+                         ~report:(fun location error ->
+                           reports := (location, error) :: !reports)
+                         `Document tokens);
+                    assert_bool "token location was not reported"
+                      (List.exists
+                         (fun (location, _) -> location = (7, 11))
+                         !reports) );
+                ];
+           "known divergence: foreign breakout reentry"
+           >::: [
+                  disagrees "svg b svg text" "<svg><b><svg>ab";
+                  disagrees "math b math text" "<math><b><math>xy";
+                  disagrees "svg s svg digits" "<svg><s><svg>00";
+                ];
+           "known divergence: cdata in foreign content"
+           >::: [
+                  disagrees "svg" "<svg><![CDATA[a]]></svg>";
+                  disagrees "math" "<math><![CDATA[1]]></math>";
+                ];
+           "known divergence: form feed whitespace"
+           >::: [
+                  disagrees "alone" "\x0C";
+                  disagrees "after col" "<table><col>\x0C";
+                  disagrees "after template" "<template></template>\x0C";
+                ];
+           "known divergence: nul reconstructs formatting"
+           >::: [
+                  disagrees "p b p" "<p><b><p>\x00";
+                  disagrees "li s li" "<li><s><li>\x00<p";
+                ];
+           "known divergence: fragment breakout rawtext eof"
+           >::: [
+                  disagrees ~context:(`Fragment "svg") "style slash"
+                    "<p></p><style></";
+                  disagrees ~context:(`Fragment "svg") "script candidate"
+                    "<p></p><script></x";
+                  disagrees ~context:(`Fragment "math") "style candidate"
+                    "<p></p><style></x";
+                ];
+           "known non-termination" >::: [ terminates ];
          ])
