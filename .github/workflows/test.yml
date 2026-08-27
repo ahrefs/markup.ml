@@ -8,17 +8,8 @@ jobs:
       fail-fast: false
       matrix:
         ocaml:
-        - 4.13.1
-        - 4.12.1
-        - 4.11.2
-        - 4.10.2
-        - 4.09.1
-        - 4.08.1
-        - 4.07.1
-        - 4.06.1
-        - 4.05.0
-        - 4.04.2
-        - 4.03.0
+        - 5.4.1
+        - 4.14.2
 
     steps:
     - uses: actions/checkout@v2
@@ -34,7 +25,7 @@ jobs:
     - run: opam exec -- make dependency-test
     - run: opam lint
 
-    - if: ${{matrix.ocaml == '4.13.1'}}
+    - if: ${{matrix.ocaml == '5.4.1'}}
       env:
         COVERALLS_REPO_TOKEN: ${{secrets.GITHUB_TOKEN}}
         PULL_REQUEST_NUMBER: ${{github.event.number}}
