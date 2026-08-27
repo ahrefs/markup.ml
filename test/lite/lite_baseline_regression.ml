@@ -75,6 +75,12 @@ let () =
                   agrees "leading bom" "\xEF\xBB\xBFa";
                   agrees "bom in text" "a\xEF\xBB\xBFb";
                 ];
+           "table whitespace"
+           >::: [
+                  agrees "before colgroup" "<table>\n\t<colgroup><col></table>";
+                  agrees "between rows"
+                    "<table><tr><td>a</td></tr> <tr></table>";
+                ];
            "attributes"
            >::: [
                   agrees "source order" "<p a=1 b=2 c=3>x";
