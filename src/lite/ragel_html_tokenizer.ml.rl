@@ -105,6 +105,7 @@ let emit_many scanner tokens =
 
  wsp = 0..32;
  ident = alnum | '-' | [_:.] ;
+ tag_name = ident ( any - ( wsp | '/' | '>' ) )*;
 
  in_script :=
    (count_newlines | any* >mark %mark_end :>>
@@ -141,8 +142,8 @@ let emit_many scanner tokens =
     '"' ^'"'* >mark %mark_end '"' |
     ^(wsp|'"'|"'"|'>')+ >mark %mark_end);
  tag_attrs = (wsp+ | ident+ >mark %key wsp* ('=' wsp* literal)? %store_attr )**;
- close_tag = '/' wsp* ident* >mark %close_tag <: ^'>'* '>';
- open_tag = ident+ >mark %tag <: wsp* tag_attrs
+ close_tag = '/' wsp* tag_name? >mark %close_tag <: ^'>'* '>';
+ open_tag = tag_name >mark %tag <: wsp* tag_attrs
    ('/' wsp* '>' %tag_done_2 | '>' %tag_done);
  directive = ('!'|'?') (alnum ident+) >mark %directive <:
    wsp* tag_attrs '?'? '>' %directive_done;
