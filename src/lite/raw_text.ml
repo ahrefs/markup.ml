@@ -27,7 +27,7 @@ let plaintext data start =
   done;
   { text = Buffer.contents buffer; had_end_tag = false; next = length }
 
-let scan data start tag =
+let scan ?(drop_end_tag_candidate = false) data start tag =
   let length = String.length data in
   let decode = match tag with "title" | "textarea" -> true | _ -> false in
   let buffer = Buffer.create 256 in
@@ -129,13 +129,15 @@ let scan data start tag =
     if index < length && is_letter data.[index] then
       end_tag_name state lt (index + 1)
     else begin
-      Buffer.add_string buffer "</";
+      Buffer.add_string buffer
+        (if index >= length && drop_end_tag_candidate then "<" else "</");
       state index
     end
   and end_tag_name state lt index =
     let appropriate () = word_is (lt + 2) index tag in
     let dump () =
-      Buffer.add_substring buffer data lt (index - lt);
+      if drop_end_tag_candidate then Buffer.add_char buffer '<'
+      else Buffer.add_substring buffer data lt (index - lt);
       state index
     in
     if index >= length then dump ()

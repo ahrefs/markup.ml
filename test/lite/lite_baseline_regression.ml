@@ -207,14 +207,17 @@ let () =
                   agrees "p b p" "<p><b><p>\x00";
                   agrees "li s li" "<li><s><li>\x00<p";
                 ];
-           "known divergence: fragment breakout rawtext eof"
+           "fragment breakout rawtext eof"
            >::: [
-                  disagrees ~context:(`Fragment "svg") "style slash"
+                  agrees ~context:(`Fragment "svg") "style slash"
                     "<p></p><style></";
-                  disagrees ~context:(`Fragment "svg") "script candidate"
+                  agrees ~context:(`Fragment "svg") "script candidate"
                     "<p></p><script></x";
-                  disagrees ~context:(`Fragment "math") "style candidate"
+                  agrees ~context:(`Fragment "math") "style candidate"
                     "<p></p><style></x";
+                  agrees "document candidate" "<style></x";
+                  agrees ~context:(`Fragment "svg") "complete candidate"
+                    "<p></p><style></x>";
                 ];
            "known non-termination" >::: [ terminates ];
          ])
