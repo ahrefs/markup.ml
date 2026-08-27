@@ -32,11 +32,12 @@ type t = {
   mutable finished : bool;
 }
 
-let decode text =
-  try Html_entity_decoder.decode text with _ -> text
+let decode = Html_entity_decoder.decode
 
 let attributes attrs =
-  List.map (fun (name, value) -> name, decode value) attrs
+  List.map
+    (fun (name, value) -> name, Html_entity_decoder.decode_attribute value)
+    attrs
 
 let make_tag name attributes =
   {Token_tag.name; attributes; self_closing = false}
