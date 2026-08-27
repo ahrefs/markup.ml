@@ -81,6 +81,25 @@ test-lite-afl :
 test-lite-afl-report :
 	$(AFL_WHATSUP) -d $(LITE_AFL_OUTPUT)
 
+TOKENIZER_AFL_EXE := _build-afl/default/test/fuzz/tokenizer_diff_fuzz.exe
+TOKENIZER_AFL_OUTPUT ?= _fuzz/tokenizer
+
+.PHONY : test-tokenizer-afl
+test-tokenizer-afl :
+	@command -v $(AFL_FUZZ) >/dev/null || { \
+	  echo "$(AFL_FUZZ) not found; install AFL or set AFL_FUZZ" >&2; exit 1; }
+	dune build --build-dir _build-afl --profile afl \
+	  test/fuzz/tokenizer_diff_fuzz.exe
+	@mkdir -p $(TOKENIZER_AFL_OUTPUT)
+	AFL_NO_UI=1 AFL_NO_AFFINITY=1 AFL_SKIP_CPUFREQ=1 \
+	  AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1 \
+	  $(AFL_FUZZ) -i test/fuzz/seeds -o $(TOKENIZER_AFL_OUTPUT) \
+	    -x test/fuzz/html.dict -- $(TOKENIZER_AFL_EXE)
+
+.PHONY : test-tokenizer-afl-report
+test-tokenizer-afl-report :
+	$(AFL_WHATSUP) -d $(TOKENIZER_AFL_OUTPUT)
+
 .PHONY : coverage
 coverage :
 	find . -name '*.coverage' | xargs rm -f
