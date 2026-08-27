@@ -46,7 +46,8 @@ let parse_source report context depth_limit tokens =
 let parse_html ?(report = fun _ _ -> ())
     ?(context : [ `Document | `Fragment of string ] = `Document) ?depth_limit
     html =
-  Token_source.create html |> parse_source report context depth_limit
+  Token_source.create (wrap_report report) html
+  |> parse_source report context depth_limit
 
 let parse_tokens ?(report = fun _ _ -> ())
     ?(context : [ `Document | `Fragment of string ] = `Document) ?depth_limit
