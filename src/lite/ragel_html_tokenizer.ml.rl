@@ -21,10 +21,8 @@ type t = {
   mark : int ref;
   mark_end : int ref;
   tag : string ref;
-  key : string ref;
-  attrs : (string * string) list ref;
   mutable declaration : int;
-  mutable raw_text : int;
+  mutable tag_scan : int;
   mutable line : int;
   tokens : Html_tokenizer.token array;
   lines : int array;
@@ -35,8 +33,7 @@ type t = {
 
 let decode = Html_entity_decoder.decode
 
-(* [attrs] is accumulated in reverse source order; the first occurrence of a
-   name wins, like src/baseline. *)
+(* The first occurrence of a name wins, like src/baseline. *)
 let attributes attrs =
   let rec dedupe seen = function
     | [] -> []
@@ -46,7 +43,7 @@ let attributes attrs =
         (name, Html_entity_decoder.decode_attribute value)
         :: dedupe (name :: seen) rest
   in
-  dedupe [] (List.rev attrs)
+  dedupe [] attrs
 
 let make_tag ?(self_closing = false) name attributes =
   {Token_tag.name; attributes; self_closing}
@@ -86,7 +83,6 @@ let emit_text scanner text =
 
  action mark { mark := !p }
  action mark_end { mark_end := !p }
- action tag { tag := String.lowercase_ascii @@ sub (); attrs := []; }
  action close_tag {
    let name = String.lowercase_ascii @@ sub () in
    emit scanner (End (make_tag name []));
@@ -96,42 +92,13 @@ let emit_text scanner text =
    emit_text scanner (decode (sub ()));
    pause ();
  }
- action key { key := String.lowercase_ascii @@ sub () }
- action store_attr { attrs := (!key, if !mark < 0 then "" else sub()) :: !attrs }
- action tag_done {
-   match !tag with
-   | "" -> ()
-   | "script" | "style" | "title" | "textarea" ->
-     scanner.raw_text <- !p;
-     fhold;
-     pe := !p + 1;
-   | name ->
-     emit scanner (Start (make_tag name (attributes !attrs)));
-     pause ();
+ action tag_start {
+   tag := String.lowercase_ascii @@ sub ();
+   scanner.tag_scan <- !p;
+   fhold;
+   pe := !p + 1;
  }
- action tag_done_2 {
-   match !tag with
-   | "" -> ()
-   | "script" | "style" | "title" | "textarea" ->
-     scanner.raw_text <- !p;
-     fhold;
-     pe := !p + 1;
-   | name ->
-     emit scanner
-       (Start (make_tag ~self_closing:true name (attributes !attrs)));
-     pause ();
- }
- action garbage_tag_done {
-   match !tag with
-   | "" -> fgoto main;
-   | "script" | "style" | "title" | "textarea" ->
-     scanner.raw_text <- !p + 1;
-     pe := !p + 1;
-   | name ->
-     emit scanner (Start (make_tag name (attributes !attrs)));
-     pause ();
-     fgoto main;
- }
+ action garbage_tag_done { fgoto main; }
  action markup_declaration { scanner.declaration <- !p; pe := !p + 1; }
 
  action garbage_tag { fhold; fgoto garbage_tag; }
@@ -139,23 +106,18 @@ let emit_text scanner text =
  count_newlines = ('\n' >{ scanner.line <- scanner.line + 1 } | ^'\n'+)**;
 
  wsp = 0..32;
+ html_ws = 0x09 | 0x0A | 0x0C | 0x0D | 0x20;
  ident = alnum | '-' | [_:.] ;
- tag_name = ident ( any - ( wsp | '/' | '>' ) )*;
+ tag_name = ident ( any - ( html_ws | '/' | '>' ) )*;
 
  garbage_tag := (count_newlines | ^'>'* '>' @garbage_tag_done);
 
- literal =
-   ("'" ^"'"* >mark %mark_end "'" |
-    '"' ^'"'* >mark %mark_end '"' |
-    ^(wsp|'"'|"'"|'>')+ >mark %mark_end);
- tag_attrs = (wsp+ | ident+ >mark %key wsp* ('=' wsp* literal)? %store_attr )**;
  close_tag = '/' wsp* tag_name? >mark %close_tag <: ^'>'* '>';
- open_tag = tag_name >mark %tag <: wsp* tag_attrs
-   ('/' wsp* '>' %tag_done_2 | '>' %tag_done);
+ open_tag = tag_name >mark %tag_start;
  declaration = ('!'|'?') @markup_declaration;
  tag = '<' wsp* <:
    (close_tag | open_tag | declaration)
-   @lerr(garbage_tag) >{ tag := "" };
+   @lerr(garbage_tag);
  main := (((tag | ^'<' >mark ^'<'* %text ) )** | count_newlines);
 
  write data;
@@ -173,10 +135,8 @@ let create data =
    mark = ref (-1);
    mark_end = ref (-1);
    tag = ref "";
-   key = ref "";
-   attrs = ref [];
    declaration = (-1);
-   raw_text = (-1);
+   tag_scan = (-1);
    line = 1;
    tokens = Array.make buffer_capacity EOF;
    lines = Array.make buffer_capacity 1;
@@ -193,8 +153,6 @@ let run scanner =
   let mark = scanner.mark in
   let mark_end = scanner.mark_end in
   let tag = scanner.tag in
-  let key = scanner.key in
-  let attrs = scanner.attrs in
   pe := !eof;
   let pause () =
     if scanner.write >= buffer_capacity - maximum_transition_output &&
@@ -213,19 +171,34 @@ let run scanner =
     mark_end := -1;
     text
   in
-  if scanner.raw_text >= 0 then begin
-    let start = scanner.raw_text in
-    scanner.raw_text <- (-1);
+  if scanner.tag_scan >= 0 then begin
+    let start = scanner.tag_scan in
+    scanner.tag_scan <- (-1);
     let name = !tag in
-    let result = Raw_text.scan data start name in
-    emit scanner (Start (make_tag name (attributes !attrs)));
-    emit scanner (String result.Raw_text.text);
-    if result.Raw_text.had_end_tag then
-      emit scanner (End (make_tag name []));
-    for index = start to result.Raw_text.next - 1 do
+    let result = Tag_attributes.scan data start in
+    let next =
+      if not result.Tag_attributes.ok then !eof
+      else begin
+        let attrs = attributes result.Tag_attributes.attributes in
+        let self_closing = result.Tag_attributes.self_closing in
+        match name with
+        | "script" | "style" | "title" | "textarea" ->
+            let after_tag = result.Tag_attributes.next in
+            let body = Raw_text.scan data after_tag name in
+            emit scanner (Start (make_tag ~self_closing name attrs));
+            emit scanner (String body.Raw_text.text);
+            if body.Raw_text.had_end_tag then
+              emit scanner (End (make_tag name []));
+            body.Raw_text.next
+        | _ ->
+            emit scanner (Start (make_tag ~self_closing name attrs));
+            result.Tag_attributes.next
+      end
+    in
+    for index = start to next - 1 do
       if data.[index] = '\n' then scanner.line <- scanner.line + 1
     done;
-    p := result.Raw_text.next;
+    p := next;
     cs := htmlstream_en_main;
     if !p >= !eof then scanner.finished <- true
   end
@@ -243,7 +216,7 @@ let run scanner =
   end
   else begin
     %%write exec;
-    if scanner.declaration >= 0 || scanner.raw_text >= 0 then ()
+    if scanner.declaration >= 0 || scanner.tag_scan >= 0 then ()
     else if !p >= !eof then scanner.finished <- true
     else if scanner.write = 0 then scanner.finished <- true
   end
