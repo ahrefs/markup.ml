@@ -1,0 +1,9 @@
+(executable
+ (name record_ragel_tokens)
+ (modules record_ragel_tokens)
+ (libraries test_support))
+
+(executable
+ (name summarize_ragel_tokens)
+ (modules summarize_ragel_tokens)
+ (libraries test_support))
