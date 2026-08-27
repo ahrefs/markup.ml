@@ -163,6 +163,18 @@ let () =
                     assert_equal ~printer:print_signals
                       (lite (`Fragment "textarea") "&lt;b>")
                       (lite_tokens (`Fragment "textarea") tokens) );
+                  ( "nul in string" >:: fun _ ->
+                    let tokens =
+                      [ ((1, 1), `String "a\x00b"); ((1, 4), `EOF) ]
+                    in
+                    let signals = lite_tokens `Document tokens in
+                    assert_bool "explicit String NUL was not preserved"
+                      (List.exists
+                         (function
+                           | `Text strings ->
+                               String.concat "" strings = "a\x00b"
+                           | _ -> false)
+                         signals) );
                   ( "report location" >:: fun _ ->
                     let reports = ref [] in
                     let tokens =

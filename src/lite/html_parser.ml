@@ -1001,23 +1001,6 @@ let parse ?depth_limit requested_context report tokens =
   let ended = ref (fun _ -> ()) in
   let output = ref (fun _ -> ()) in
 
-  let remove_nulls s =
-    if String.contains s '\x00' then
-      String.concat "" (String.split_on_char '\x00' s)
-    else s
-  in
-  let replace_nulls s =
-    if String.contains s '\x00' then begin
-      let buffer = Buffer.create (String.length s + 8) in
-      String.iter
-        (fun byte ->
-          if byte = '\x00' then Buffer.add_string buffer "\xEF\xBF\xBD"
-          else Buffer.add_char buffer byte)
-        s;
-      Buffer.contents buffer
-    end
-    else s
-  in
   let report_if = Error.report_if report in
   let unmatched_end_tag l name k =
     report l (`Unmatched_end_tag name) !throw k
@@ -1579,13 +1562,10 @@ let parse ?depth_limit requested_context report tokens =
   and in_body_mode_rules context_name mode = function
     | l, `Char 0 -> report l (`Bad_token ("U+0000", "body", "null")) !throw mode
     | l, `String s ->
-        let s = remove_nulls s in
-        if s = "" then mode ()
-        else
-          reconstruct_active_formatting_elements (fun () ->
-              add_string l s;
-              if not @@ is_whitespace_only s then frameset_ok := false;
-              mode ())
+        reconstruct_active_formatting_elements (fun () ->
+            add_string l s;
+            if not @@ is_whitespace_only s then frameset_ok := false;
+            mode ())
     | l, `Char ((0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) as c) ->
         reconstruct_active_formatting_elements (fun () ->
             add_character l c;
@@ -2130,12 +2110,6 @@ let parse ?depth_limit requested_context report tokens =
         | (_, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020)) as v ->
             in_table_text_mode only_space (v :: cs) mode
         | (_, `Char _) as v -> in_table_text_mode false (v :: cs) mode
-        | l, `String s when String.contains s '\x00' ->
-            let s = remove_nulls s in
-            let v = (l, `String s) in
-            if is_whitespace_only s then
-              in_table_text_mode only_space (v :: cs) mode
-            else in_table_text_mode false (v :: cs) mode
         | (_, `String s) as v when is_whitespace_only s ->
             in_table_text_mode only_space (v :: cs) mode
         | (_, `String _) as v -> in_table_text_mode false (v :: cs) mode
@@ -2396,7 +2370,7 @@ let parse ?depth_limit requested_context report tokens =
         add_character l c;
         mode ()
     | l, `String s ->
-        add_string l (remove_nulls s);
+        add_string l s;
         mode ()
     | l, `Comment s -> emit l (`Comment s) mode
     | l, `Doctype _ ->
@@ -2666,8 +2640,8 @@ let parse ?depth_limit requested_context report tokens =
             add_character l u_rep;
             mode ())
     | l, `String s ->
-        add_string l (replace_nulls s);
-        if not @@ is_whitespace_only (remove_nulls s) then frameset_ok := false;
+        add_string l s;
+        if not @@ is_whitespace_only s then frameset_ok := false;
         mode ()
     | l, `Char ((0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) as c) ->
         add_character l c;
