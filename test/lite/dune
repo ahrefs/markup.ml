@@ -18,3 +18,12 @@
  (name lite_writer_diff_corpus)
  (modules lite_writer_diff_corpus)
  (libraries containers markup markup.lite unix))
+
+(executable
+ (name lite_main_entity_regression)
+ (modules lite_main_entity_regression)
+ (libraries markup markup.lite))
+
+(rule
+ (alias runtest)
+ (action (run %{exe:lite_main_entity_regression.exe})))
