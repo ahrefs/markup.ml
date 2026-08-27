@@ -5,6 +5,7 @@
 [@@@ocaml.warning "-38-32"]
 
 open Common
+open Html_tokenizer
 
 type location_out = {
   mutable line : int;
@@ -60,13 +61,13 @@ let emit_many scanner tokens =
  action close_tag {
    let name = String.lowercase_ascii @@ sub () in
    if name <> "br" then begin
-     emit scanner (`End (make_tag name []));
+     emit scanner (End (make_tag name []));
      pause ()
    end;
  }
  action directive { directive := String.lowercase_ascii @@ sub (); attrs := []; }
  action text {
-   emit scanner (`String (decode (sub ())));
+   emit scanner (String (decode (sub ())));
    pause ();
  }
  action key { key := String.lowercase_ascii @@ sub () }
@@ -78,13 +79,13 @@ let emit_many scanner tokens =
    | "title" -> fhold; fgoto in_title;
    | "" -> ()
    | name ->
-     emit scanner (`Start (make_tag name (attributes !attrs)));
+     emit scanner (Start (make_tag name (attributes !attrs)));
      pause ();
  }
  action tag_done_2 {
-   let start = `Start (make_tag !tag (attributes !attrs)) in
+   let start = Start (make_tag !tag (attributes !attrs)) in
    if !tag = "a" || !tag = "br" then emit scanner start
-   else emit_many scanner [start; `End (make_tag !tag [])];
+   else emit_many scanner [start; End (make_tag !tag [])];
    pause ();
  }
  action directive_done { }
@@ -100,27 +101,27 @@ let emit_many scanner tokens =
    (count_newlines | any* >mark %mark_end :>>
      ('<' wsp* '/' wsp* 'script'i wsp* '>' >{
        emit_many scanner
-         [`Start (make_tag "script" (attributes !attrs));
-          `String (sub ());
-          `End (make_tag "script" [])];
+         [Start (make_tag "script" (attributes !attrs));
+          String (sub ());
+          End (make_tag "script" [])];
        pause ();
      } @{fgoto main;}));
  in_style :=
    (count_newlines | any* >mark %mark_end :>>
      ('<' wsp* '/' wsp* 'style'i wsp* '>' >{
        emit_many scanner
-         [`Start (make_tag "style" (attributes !attrs));
-          `String (sub ());
-          `End (make_tag "style" [])];
+         [Start (make_tag "style" (attributes !attrs));
+          String (sub ());
+          End (make_tag "style" [])];
        pause ();
      } @{fgoto main;}));
  in_title :=
    (count_newlines | any* >mark %mark_end :>>
      ('<' wsp* '/' wsp* 'title'i wsp* '>' >{
        emit_many scanner
-         [`Start (make_tag "title" (attributes !attrs));
-          `String (decode (sub ()));
-          `End (make_tag "title" [])];
+         [Start (make_tag "title" (attributes !attrs));
+          String (decode (sub ()));
+          End (make_tag "title" [])];
        pause ();
      } @{fgoto main;}));
 
@@ -161,7 +162,7 @@ let create data =
    attrs = ref [];
    directive = ref "";
    line = 1;
-   tokens = Array.make buffer_capacity `EOF;
+   tokens = Array.make buffer_capacity EOF;
    lines = Array.make buffer_capacity 1;
    read = 0;
    write = 0;
@@ -208,14 +209,14 @@ let rec next scanner (_state : Html_tokenizer.state)
     let token = scanner.tokens.(index) in
     location.line <- scanner.lines.(index);
     location.column <- -1;
-    scanner.tokens.(index) <- `EOF;
+    scanner.tokens.(index) <- EOF;
     scanner.read <- index + 1;
     token
   end
   else if scanner.finished then begin
     location.line <- scanner.line;
     location.column <- -1;
-    `EOF
+    EOF
   end
   else begin
     scanner.read <- 0;
