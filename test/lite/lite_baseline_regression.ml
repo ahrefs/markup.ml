@@ -23,6 +23,11 @@ let agrees ?(context = `Document) name html =
   assert_equal ~printer:print_signals (baseline context html)
     (lite context html)
 
+let disagrees ?(context = `Document) name html =
+  name >:: fun _ ->
+  assert_bool "baseline and lite now agree; promote this test to [agrees]"
+    (baseline context html <> lite context html)
+
 let () =
   run_test_tt_main
     ("Lite vs baseline regressions"
@@ -119,5 +124,25 @@ let () =
                   agrees ~context:(`Fragment "svg") "td in svg" "<td>x";
                   agrees ~context:(`Fragment "svg") "div span in svg"
                     "<div><span></div>";
+                ];
+           "known divergence: foreign breakout reentry"
+           >::: [
+                  disagrees "svg b svg text" "<svg><b><svg>ab";
+                  disagrees "math b math text" "<math><b><math>xy";
+                  disagrees "svg s svg digits" "<svg><s><svg>00";
+                ];
+           "known divergence: cdata in foreign content"
+           >::: [
+                  disagrees "svg" "<svg><![CDATA[a]]></svg>";
+                  disagrees "math" "<math><![CDATA[1]]></math>";
+                ];
+           "known divergence: fragment breakout rawtext eof"
+           >::: [
+                  disagrees ~context:(`Fragment "svg") "style slash"
+                    "<p></p><style></";
+                  disagrees ~context:(`Fragment "svg") "script candidate"
+                    "<p></p><script></x";
+                  disagrees ~context:(`Fragment "math") "style candidate"
+                    "<p></p><style></x";
                 ];
          ])
