@@ -20,6 +20,11 @@
  (libraries containers markup markup.lite unix))
 
 (executable
+ (name lite_baseline_regression)
+ (modules lite_baseline_regression)
+ (libraries markup markup.common markup.lite ounit2))
+
+(executable
  (name lite_main_entity_regression)
  (modules lite_main_entity_regression)
  (libraries markup markup.lite))
