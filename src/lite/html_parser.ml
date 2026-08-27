@@ -19,16 +19,6 @@ end = struct
     | `Other s -> s
 end
 
-(* Specialization of List.mem at qname list, to avoid polymorphic
-   comparison. *)
-let list_mem_qname ((ns, tag) : qname) l =
-  let rec loop = function
-    | [] -> false
-    | (ns', tag') :: _ when ns' = ns && tag' = tag -> true
-    | _ :: rest -> loop rest
-  in
-  loop l
-
 (* Elements. *)
 type element = {
   element_name : qname;
@@ -93,100 +83,26 @@ end = struct
       parent = dummy;
     }
 
-  let is_special name =
-    list_mem_qname name
-      [
-        (`HTML, "address");
-        (`HTML, "applet");
-        (`HTML, "area");
-        (`HTML, "article");
-        (`HTML, "aside");
-        (`HTML, "base");
-        (`HTML, "basefont");
-        (`HTML, "bgsound");
-        (`HTML, "blockquote");
-        (`HTML, "body");
-        (`HTML, "br");
-        (`HTML, "button");
-        (`HTML, "caption");
-        (`HTML, "center");
-        (`HTML, "col");
-        (`HTML, "colgroup");
-        (`HTML, "dd");
-        (`HTML, "details");
-        (`HTML, "dir");
-        (`HTML, "div");
-        (`HTML, "dl");
-        (`HTML, "dt");
-        (`HTML, "embed");
-        (`HTML, "fieldset");
-        (`HTML, "figcaption");
-        (`HTML, "figure");
-        (`HTML, "footer");
-        (`HTML, "form");
-        (`HTML, "frame");
-        (`HTML, "frameset");
-        (`HTML, "h1");
-        (`HTML, "h2");
-        (`HTML, "h3");
-        (`HTML, "h4");
-        (`HTML, "h5");
-        (`HTML, "h6");
-        (`HTML, "head");
-        (`HTML, "header");
-        (`HTML, "hgroup");
-        (`HTML, "hr");
-        (`HTML, "html");
-        (`HTML, "iframe");
-        (`HTML, "img");
-        (`HTML, "input");
-        (`HTML, "isindex");
-        (`HTML, "li");
-        (`HTML, "link");
-        (`HTML, "listing");
-        (`HTML, "main");
-        (`HTML, "marquee");
-        (`HTML, "meta");
-        (`HTML, "nav");
-        (`HTML, "noembed");
-        (`HTML, "noframes");
-        (`HTML, "noscript");
-        (`HTML, "object");
-        (`HTML, "ol");
-        (`HTML, "p");
-        (`HTML, "param");
-        (`HTML, "plaintext");
-        (`HTML, "pre");
-        (`HTML, "script");
-        (`HTML, "section");
-        (`HTML, "select");
-        (`HTML, "source");
-        (`HTML, "style");
-        (`HTML, "summary");
-        (`HTML, "table");
-        (`HTML, "tbody");
-        (`HTML, "td");
-        (`HTML, "template");
-        (`HTML, "textarea");
-        (`HTML, "tfoot");
-        (`HTML, "th");
-        (`HTML, "thead");
-        (`HTML, "title");
-        (`HTML, "tr");
-        (`HTML, "track");
-        (`HTML, "ul");
-        (`HTML, "wbr");
-        (`HTML, "xmp");
-        (`MathML, "mi");
-        (`MathML, "mo");
-        (`MathML, "mn");
-        (`MathML, "ms");
-        (`MathML, "mtext");
-        (`MathML, "annotation-xml");
-        (`SVG, "foreignObject");
-        (`SVG, "desc");
-        (`SVG, "title");
-      ]
+  let is_special = function
+    | ( `HTML,
+        ( "address" | "applet" | "area" | "article" | "aside" | "base"
+        | "basefont" | "bgsound" | "blockquote" | "body" | "br" | "button"
+        | "caption" | "center" | "col" | "colgroup" | "dd" | "details"
+        | "dir" | "div" | "dl" | "dt" | "embed" | "fieldset"
+        | "figcaption" | "figure" | "footer" | "form" | "frame" | "frameset"
+        | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "head" | "header"
+        | "hgroup" | "hr" | "html" | "iframe" | "img" | "input" | "isindex"
+        | "li" | "link" | "listing" | "main" | "marquee" | "meta" | "nav"
+        | "noembed" | "noframes" | "noscript" | "object" | "ol" | "p"
+        | "param" | "plaintext" | "pre" | "script" | "section" | "select"
+        | "source" | "style" | "summary" | "table" | "tbody" | "td"
+        | "template" | "textarea" | "tfoot" | "th" | "thead" | "title"
+        | "tr" | "track" | "ul" | "wbr" | "xmp" ) ) ->
+        true
+    | `MathML, ("mi" | "mo" | "mn" | "ms" | "mtext" | "annotation-xml") ->
+        true
+    | `SVG, ("foreignObject" | "desc" | "title") -> true
+    | _ -> false
 
   let is_not_hidden tag =
     tag.Token_tag.attributes
@@ -363,15 +279,9 @@ module Foreign : sig
 
   val adjust_svg_tag_name : string -> string
 end = struct
-  let is_mathml_text_integration_point qname =
-    list_mem_qname qname
-      [
-        (`MathML, "mi");
-        (`MathML, "mo");
-        (`MathML, "mn");
-        (`MathML, "ms");
-        (`MathML, "mtext");
-      ]
+  let is_mathml_text_integration_point = function
+    | `MathML, ("mi" | "mo" | "mn" | "ms" | "mtext") -> true
+    | _ -> false
 
   let is_html_integration_point namespace tag_name attributes =
     match namespace with
@@ -566,47 +476,43 @@ end = struct
       (fun { element_name = ns, name' } -> ns = `HTML && name' = name)
       !open_elements
 
-  let in_scope_general scope_delimiters (open_elements, depth_limit) name' =
+  let in_scope_general is_delimiter (open_elements, depth_limit) name' =
     let rec scan depth = function
       | [] -> false
       | _ when depth = 0 -> failwith "in_scope_general: depth limit reached"
       | { element_name = (ns, name'') as name } :: more ->
           if ns = `HTML && name'' = name' then true
-          else if list_mem_qname name scope_delimiters then false
+          else if is_delimiter name then false
           else scan (depth - 1) more
     in
     scan depth_limit !open_elements
 
-  let scope_delimiters =
-    [
-      (`HTML, "applet");
-      (`HTML, "caption");
-      (`HTML, "html");
-      (`HTML, "table");
-      (`HTML, "td");
-      (`HTML, "th");
-      (`HTML, "marquee");
-      (`HTML, "object");
-      (`HTML, "template");
-      (`MathML, "mi");
-      (`MathML, "mo");
-      (`MathML, "mn");
-      (`MathML, "ms");
-      (`MathML, "mtext");
-      (`MathML, "annotation-xml");
-      (`SVG, "foreignObject");
-      (`SVG, "desc");
-      (`SVG, "title");
-    ]
+  let is_scope_delimiter = function
+    | ( `HTML,
+        ( "applet" | "caption" | "html" | "table" | "td" | "th" | "marquee"
+        | "object" | "template" ) ) ->
+        true
+    | `MathML, ("mi" | "mo" | "mn" | "ms" | "mtext" | "annotation-xml") ->
+        true
+    | `SVG, ("foreignObject" | "desc" | "title") -> true
+    | _ -> false
 
-  let in_scope = in_scope_general scope_delimiters
-  let in_button_scope = in_scope_general ((`HTML, "button") :: scope_delimiters)
+  let is_button_scope_delimiter = function
+    | `HTML, "button" -> true
+    | name -> is_scope_delimiter name
 
-  let in_list_item_scope =
-    in_scope_general ((`HTML, "ol") :: (`HTML, "ul") :: scope_delimiters)
+  let is_list_item_scope_delimiter = function
+    | `HTML, ("ol" | "ul") -> true
+    | name -> is_scope_delimiter name
 
-  let in_table_scope =
-    in_scope_general [ (`HTML, "html"); (`HTML, "table"); (`HTML, "template") ]
+  let is_table_scope_delimiter = function
+    | `HTML, ("html" | "table" | "template") -> true
+    | _ -> false
+
+  let in_scope = in_scope_general is_scope_delimiter
+  let in_button_scope = in_scope_general is_button_scope_delimiter
+  let in_list_item_scope = in_scope_general is_list_item_scope_delimiter
+  let in_table_scope = in_scope_general is_table_scope_delimiter
 
   let in_select_scope (open_elements, depth_limit) name =
     let rec scan depth = function
@@ -627,7 +533,7 @@ end = struct
       | _ when depth = 0 -> failwith "one_in_scope: depth limit reached"
       | { element_name = (ns, name') as name } :: more ->
           if ns = `HTML && list_mem_string name' names then true
-          else if list_mem_qname name scope_delimiters then false
+          else if is_scope_delimiter name then false
           else scan (depth - 1) more
     in
     scan depth_limit !open_elements
@@ -638,10 +544,7 @@ end = struct
       | _ when depth = 0 -> failwith "one_in_table_scope: depth limit reached"
       | { element_name = (ns, name') as name } :: more ->
           if ns = `HTML && list_mem_string name' names then true
-          else if
-            list_mem_qname name
-              [ (`HTML, "html"); (`HTML, "table"); (`HTML, "template") ]
-          then false
+          else if is_table_scope_delimiter name then false
           else scan (depth - 1) more
     in
     scan depth_limit !open_elements
@@ -652,7 +555,7 @@ end = struct
       | _ when depth = 0 -> failwith "target_in_scope: depth limit reached"
       | e :: more ->
           if e == node then true
-          else if list_mem_qname node.element_name scope_delimiters then false
+          else if is_scope_delimiter node.element_name then false
           else scan (depth - 1) more
     in
     scan depth_limit !open_elements
@@ -1413,9 +1316,9 @@ let parse ?depth_limit requested_context report tokens =
             close_element_with_implied name l mode
           else if
             Element.is_special name'
-            && not
-               @@ list_mem_qname name'
-                    [ (`HTML, "address"); (`HTML, "div"); (`HTML, "p") ]
+            && match name' with
+               | `HTML, ("address" | "div" | "p") -> false
+               | _ -> true
           then mode ()
           else scan more
     in
