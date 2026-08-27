@@ -10,4 +10,5 @@ val create : string -> t
 val of_tokens : (location * Html_tokenizer.token) list -> t
 val location : unit -> location_out
 val next : t -> Html_tokenizer.state -> location_out -> Html_tokenizer.token
+val set_foreign : t -> (unit -> bool) -> unit
 val push : t -> location * Html_tokenizer.token -> unit

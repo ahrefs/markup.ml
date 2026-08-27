@@ -11,6 +11,7 @@ type pushed_token = { token : Html_tokenizer.token; line : int; column : int }
 type t = {
   scanner : Ragel_html_tokenizer.t;
   mutable pushed : pushed_token list;
+  mutable foreign : unit -> bool;
 }
 
 let valid_utf_8 = String.is_valid_utf_8
@@ -62,13 +63,21 @@ let create html =
   let html = if valid_utf_8 html then html else replace_malformed html in
   let html = strip_leading_bom html in
   let html = normalize_newlines html in
-  { scanner = Ragel_html_tokenizer.create html; pushed = [] }
+  {
+    scanner = Ragel_html_tokenizer.create html;
+    pushed = [];
+    foreign = (fun () -> false);
+  }
 
 let of_tokens tokens =
   let pushed =
     List.map (fun ((line, column), token) -> { token; line; column }) tokens
   in
-  { scanner = Ragel_html_tokenizer.create ""; pushed }
+  {
+    scanner = Ragel_html_tokenizer.create "";
+    pushed;
+    foreign = (fun () -> false);
+  }
 
 let location () = { line = 1; column = -1 }
 
@@ -79,7 +88,9 @@ let next source state (out : location_out) =
       out.line <- line;
       out.column <- column;
       token
-  | [] -> Ragel_html_tokenizer.next source.scanner state out
+  | [] -> Ragel_html_tokenizer.next source.scanner state (source.foreign ()) out
+
+let set_foreign source foreign = source.foreign <- foreign
 
 let push source ((line, column), token) =
   source.pushed <- { token; line; column } :: source.pushed

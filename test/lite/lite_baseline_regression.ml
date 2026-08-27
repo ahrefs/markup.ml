@@ -191,10 +191,10 @@ let () =
                   disagrees "math b math text" "<math><b><math>xy";
                   disagrees "svg s svg digits" "<svg><s><svg>00";
                 ];
-           "known divergence: cdata in foreign content"
+           "cdata in foreign content"
            >::: [
-                  disagrees "svg" "<svg><![CDATA[a]]></svg>";
-                  disagrees "math" "<math><![CDATA[1]]></math>";
+                  agrees "svg" "<svg><![CDATA[a]]></svg>";
+                  agrees "math" "<math><![CDATA[1]]></math>";
                 ];
            "form feed whitespace"
            >::: [

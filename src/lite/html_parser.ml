@@ -1040,6 +1040,9 @@ let parse ?depth_limit requested_context report tokens =
   let add_character = Text.add text in
   let add_string = Text.add_string text in
 
+  Token_source.set_foreign tokens (fun () ->
+      Stack.current_element_is_foreign context open_elements);
+
   let report_if_stack_has_other_than names k =
     let rec iterate = function
       | [] -> k ()
