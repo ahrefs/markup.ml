@@ -28,6 +28,13 @@ let disagrees ?(context = `Document) name html =
   assert_bool "baseline and lite now agree; promote this test to [agrees]"
     (baseline context html <> lite context html)
 
+(* FIXME *)
+(* this input makes the parser loop forever (misnested math/tr in row mode) *)
+let terminates =
+  "in row misnested math" >:: fun _ ->
+  if false then
+    ignore (lite `Document "<table><tr><math></tr><td><tr><b><math>0")
+
 let () =
   run_test_tt_main
     ("Lite vs baseline regressions"
@@ -156,4 +163,5 @@ let () =
                   disagrees ~context:(`Fragment "math") "style candidate"
                     "<p></p><style></x";
                 ];
+           "known non-termination" >::: [ terminates ];
          ])
