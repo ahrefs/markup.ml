@@ -196,11 +196,11 @@ let () =
                   disagrees "svg" "<svg><![CDATA[a]]></svg>";
                   disagrees "math" "<math><![CDATA[1]]></math>";
                 ];
-           "known divergence: form feed whitespace"
+           "form feed whitespace"
            >::: [
-                  disagrees "alone" "\x0C";
-                  disagrees "after col" "<table><col>\x0C";
-                  disagrees "after template" "<template></template>\x0C";
+                  agrees "alone" "\x0C";
+                  agrees "after col" "<table><col>\x0C";
+                  agrees "after template" "<template></template>\x0C";
                 ];
            "known divergence: nul reconstructs formatting"
            >::: [
