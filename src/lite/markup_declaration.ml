@@ -18,6 +18,16 @@ let add buffer byte =
 
 let is_whitespace = function '\t' | '\n' | '\x0C' | ' ' -> true | _ -> false
 
+let matches data index keyword =
+  index + String.length keyword <= String.length data
+  && begin
+    let rec check offset =
+      offset >= String.length keyword
+      || (data.[index + offset] = keyword.[offset] && check (offset + 1))
+    in
+    check 0
+  end
+
 let matches_lowercase data index keyword =
   index + String.length keyword <= String.length data
   && begin
@@ -307,7 +317,26 @@ let doctype data start =
   in
   doctype_start start
 
-let scan data index =
+let cdata data start =
+  let length = String.length data in
+  let buffer = Buffer.create 64 in
+  let finish next = { token = `String (Buffer.contents buffer); next } in
+  let rec consume index =
+    if index >= length then finish index
+    else if
+      index + 3 <= length
+      && data.[index] = ']'
+      && data.[index + 1] = ']'
+      && data.[index + 2] = '>'
+    then finish (index + 3)
+    else begin
+      add buffer data.[index];
+      consume (index + 1)
+    end
+  in
+  consume start
+
+let scan ~foreign data index =
   if data.[index] = '?' then bogus_comment data (index + 1)
   else if
     index + 3 <= String.length data
@@ -316,4 +345,6 @@ let scan data index =
   then comment data (index + 3)
   else if matches_lowercase data (index + 1) "doctype" then
     doctype data (index + 8)
+  else if foreign && matches data (index + 1) "[CDATA[" then
+    cdata data (index + 8)
   else bogus_comment data (index + 1)

@@ -168,7 +168,7 @@ let create data =
    write = 0;
    finished = false}
 
-let run scanner =
+let run scanner foreign =
   let data = scanner.data in
   let cs = scanner.cs in
   let p = scanner.p in
@@ -252,7 +252,7 @@ let run scanner =
   else if scanner.declaration >= 0 then begin
     let start = scanner.declaration in
     scanner.declaration <- (-1);
-    let result = Markup_declaration.scan data start in
+    let result = Markup_declaration.scan ~foreign data start in
     emit scanner result.Markup_declaration.token;
     for index = start to result.Markup_declaration.next - 1 do
       if data.[index] = '\n' then scanner.line <- scanner.line + 1
@@ -313,7 +313,7 @@ let scan_raw_state scanner state =
     if next_index >= !(scanner.eof) then scanner.finished <- true
   end
 
-let rec next scanner (state : Html_tokenizer.state)
+let rec next scanner (state : Html_tokenizer.state) foreign
     (location : location_out) =
   if scanner.read < scanner.write then begin
     let index = scanner.read in
@@ -333,11 +333,11 @@ let rec next scanner (state : Html_tokenizer.state)
     scanner.read <- 0;
     scanner.write <- 0;
     scan_raw_state scanner state;
-    next scanner Data location
+    next scanner Data foreign location
   end
   else begin
     scanner.read <- 0;
     scanner.write <- 0;
-    run scanner;
-    next scanner state location
+    run scanner foreign;
+    next scanner state foreign location
   end
