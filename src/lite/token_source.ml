@@ -30,8 +30,30 @@ let replace_malformed html =
     () html;
   Buffer.contents buffer
 
+let normalize_newlines html =
+  if not (String.contains html '\r') then html
+  else begin
+    let length = String.length html in
+    let buffer = Buffer.create length in
+    let rec copy index =
+      if index < length then
+        match html.[index] with
+        | '\r' ->
+            Buffer.add_char buffer '\n';
+            if index + 1 < length && html.[index + 1] = '\n' then
+              copy (index + 2)
+            else copy (index + 1)
+        | c ->
+            Buffer.add_char buffer c;
+            copy (index + 1)
+    in
+    copy 0;
+    Buffer.contents buffer
+  end
+
 let create html =
   let html = if valid_utf_8 html then html else replace_malformed html in
+  let html = normalize_newlines html in
   { scanner = Ragel_html_tokenizer.create html; pushed = [] }
 
 let location () = { line = 1; column = -1 }
