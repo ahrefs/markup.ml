@@ -13,13 +13,7 @@ type t = {
   mutable pushed : pushed_token list;
 }
 
-let valid_utf_8 html =
-  try
-    Uutf.String.fold_utf_8
-      (fun () _ -> function `Uchar _ -> () | `Malformed _ -> raise Exit)
-      () html;
-    true
-  with Exit -> false
+let valid_utf_8 = String.is_valid_utf_8
 
 let replace_malformed html =
   let buffer = Buffer.create (String.length html + 16) in
