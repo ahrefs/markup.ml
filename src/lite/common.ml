@@ -104,7 +104,8 @@ let is_whitespace_only s =
   try
     s
     |> String.iter (fun c ->
-        if is_whitespace (int_of_char c) then () else raise Exit);
+        let c = int_of_char c in
+        if c = 0x000C || is_whitespace c then () else raise Exit);
     true
   with Exit -> false
 
