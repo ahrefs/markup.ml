@@ -1,0 +1,7 @@
+(library
+ (name markup_ref_tokenizer)
+ (wrapped true)
+ (libraries markup markup.entities)
+ (modules common entities error html_tokenizer kstream trie)
+ (flags
+  (:standard -w -9)))
