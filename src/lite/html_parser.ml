@@ -969,7 +969,10 @@ end = struct
       open_elements := List.tl !open_elements;
       current_node.is_open <- false;
       current_node.end_location <- l;
-      subtree_buffer.position <- Stack.require_current_element stack;
+      begin match Stack.current_element stack with
+      | Some element -> subtree_buffer.position <- element
+      | None -> ()
+      end;
       Active.remove active_formatting_elements current_node;
       (true, [])
     end
