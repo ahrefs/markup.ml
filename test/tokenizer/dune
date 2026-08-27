@@ -1,0 +1,11 @@
+(library
+ (name tokenizer_diff)
+ (wrapped false)
+ (modules tokenizer_diff)
+ (libraries markup markup_ref_tokenizer))
+
+(test
+ (name tokenizer_diff_test)
+ (modules tokenizer_diff_test)
+ (libraries ounit2 tokenizer_diff)
+ (package markup))
