@@ -3,6 +3,8 @@
 
 let replacement = Uchar.of_int 0xFFFD
 
+type reference = Codepoint of int | Name of string
+
 let html4_names =
   "lt gt amp quot apos nbsp iexcl cent pound curren yen brvbar sect uml copy \
    ordf laquo not shy reg macr deg plusmn sup2 sup3 acute micro para middot \
@@ -93,8 +95,8 @@ let decode_references text =
       | Some (after, value) ->
           add_utf_8 buffer text copied (index - copied);
           begin match value with
-          | `Codepoint codepoint -> add_uchar buffer codepoint
-          | `Name name ->
+          | Codepoint codepoint -> add_uchar buffer codepoint
+          | Name name ->
               begin match Hashtbl.find_opt (Lazy.force named_entities) name with
               | Some (`One codepoint) -> add_uchar buffer codepoint
               | Some (`Two (first, second)) ->
@@ -110,7 +112,7 @@ let decode_references text =
     else
       let finish = consume_while text start is_letter in
       if finish > start && finish < length && text.[finish] = ';' then
-        Some (finish + 1, `Name (String.sub text start (finish - start)))
+        Some (finish + 1, Name (String.sub text start (finish - start)))
       else None
   and numeric_reference text start =
     if start >= length then None
@@ -122,7 +124,7 @@ let decode_references text =
         for index = digits to finish - 1 do
           value := (!value lsl 4) lor hexadecimal_value text.[index]
         done;
-        Some (finish + 1, `Codepoint !value)
+        Some (finish + 1, Codepoint !value)
       end
       else None
     else
@@ -130,7 +132,7 @@ let decode_references text =
       if finish > start && finish < length && text.[finish] = ';' then
         Some
           ( finish + 1,
-            `Codepoint (int_of_string (String.sub text start (finish - start)))
+            Codepoint (int_of_string (String.sub text start (finish - start)))
           )
       else None
   and consume_while text index predicate =

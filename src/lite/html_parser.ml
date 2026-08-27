@@ -112,7 +112,7 @@ end
 
 (* Context detection. *)
 type simple_context = [ `Document | `Fragment of string ]
-type context = [ `Document | `Fragment of qname ]
+type context = Document | Fragment of qname
 
 module Context : sig
   type t
@@ -222,45 +222,34 @@ end = struct
 
   type t = (context * element option * string option) ref
 
-  let uninitialized () = ref (`Document, None, None)
+  let uninitialized () = ref (Document, None, None)
 
   let initialize requested_context state _throw k =
-    (fun k ->
+    let context =
       match requested_context with
       | `Fragment element ->
           (* HTML element names are case-insensitive, even in foreign content.
            Lowercase the element name given by the user before analysis by the
            parser, to match this convention. [String.lowercase] is acceptable
            here because the API assumes the string [element] is in UTF-8. *)
-          k (`Fragment (String.lowercase_ascii element), None)
-      | `Document as c -> k (c, None))
-      (fun (detected_context, deciding_token) ->
-        let context =
-          match detected_context with
-          | `Document -> `Document
-          | `Fragment "math" -> `Fragment (MathML, "math")
-          | `Fragment "svg" -> `Fragment (SVG, "svg")
-          | `Fragment name -> `Fragment (HTML, name)
-        in
-
-        let context_element =
-          match context with
-          | `Document -> None
-          | `Fragment name ->
-              let is_html_integration_point =
-                match name with
-                | SVG, ("foreignObject" | "desc" | "title") -> true
-                | _ -> false
-              in
-
-              Some
-                (Element.create ~is_html_integration_point ~suppress:true name
-                   (1, 1))
-        in
-
-        state := (context, context_element, deciding_token);
-
-        k ())
+          Fragment (HTML, String.lowercase_ascii element)
+      | `Document -> Document
+    in
+    let context_element =
+      match context with
+      | Document -> None
+      | Fragment name ->
+          let is_html_integration_point =
+            match name with
+            | SVG, ("foreignObject" | "desc" | "title") -> true
+            | _ -> false
+          in
+          Some
+            (Element.create ~is_html_integration_point ~suppress:true name
+               (1, 1))
+    in
+    state := (context, context_element, None);
+    k ()
 
   let the_context { contents = c, _, _ } = c
   let element { contents = _, e, _ } = e
@@ -994,7 +983,7 @@ end
 
 let parse ?depth_limit requested_context report tokens =
   let context = Context.uninitialized () in
-  let tokenizer_state = ref `Data in
+  let tokenizer_state = ref Data in
   let token_location = Token_source.location () in
   let next_token tokens =
     let token = Token_source.next tokens !tokenizer_state token_location in
@@ -1048,20 +1037,20 @@ let parse ?depth_limit requested_context report tokens =
     Context.initialize requested_context context throw_ (fun () ->
         let initial_tokenizer_state =
           match Context.the_context context with
-          | `Fragment (HTML, ("title" | "textarea")) -> `RCDATA
-          | `Fragment
+          | Fragment (HTML, ("title" | "textarea")) -> RCDATA
+          | Fragment
               (HTML, ("style" | "xmp" | "iframe" | "noembed" | "noframes")) ->
-              `RAWTEXT
-          | `Fragment (HTML, "script") -> `Script_data
-          | `Fragment (HTML, "plaintext") -> `PLAINTEXT
-          | _ -> `Data
+              RAWTEXT
+          | Fragment (HTML, "script") -> Script_data
+          | Fragment (HTML, "plaintext") -> PLAINTEXT
+          | _ -> Data
         in
 
         set_tokenizer_state initial_tokenizer_state;
 
         begin match Context.the_context context with
-        | `Document -> ()
-        | `Fragment _ ->
+        | Document -> ()
+        | Fragment _ ->
             let notional_root =
               Element.create ~suppress:true (HTML, "html") (1, 1)
             in
@@ -1069,7 +1058,7 @@ let parse ?depth_limit requested_context report tokens =
         end;
 
         begin match Context.the_context context with
-        | `Fragment (HTML, "template") ->
+        | Fragment (HTML, "template") ->
             Template.push template_insertion_modes in_template_mode
         | _ -> ()
         end;
@@ -1084,8 +1073,8 @@ let parse ?depth_limit requested_context report tokens =
 
         current_mode :=
           begin match Context.the_context context with
-          | `Fragment _ -> reset_mode ()
-          | `Document -> initial_mode
+          | Fragment _ -> reset_mode ()
+          | Document -> initial_mode
           end;
 
         (fun throw_ e k ->
@@ -1097,10 +1086,10 @@ let parse ?depth_limit requested_context report tokens =
   (* 8.2.3.1. *)
   and reset_mode () =
     let rec iterate last = function
-      | [ e ] when (not last) && Context.the_context context <> `Document ->
+      | [ e ] when (not last) && Context.the_context context <> Document ->
           begin match Context.the_context context with
-          | `Document -> assert false
-          | `Fragment name -> iterate true [ { e with element_name = name } ]
+          | Document -> assert false
+          | Fragment name -> iterate true [ { e with element_name = name } ]
           end
       | { element_name = _, "select" } :: ancestors ->
           let rec iterate' = function
@@ -1456,7 +1445,7 @@ let parse ?depth_limit requested_context report tokens =
         push_and_emit l t in_head_noscript_mode
     | l, Start ({ name = "script" } as t) ->
         push_and_emit l t (fun () ->
-            set_tokenizer_state `Script_data;
+            set_tokenizer_state Script_data;
             text_mode mode)
     | l, End { name = "head" } -> pop l after_head_mode
     | l, Start ({ name = "template" } as t) ->
@@ -1550,8 +1539,8 @@ let parse ?depth_limit requested_context report tokens =
          deviation from conformance, so that fragments "<head>...</head>" don't
          get an implicit <body> element generated after the <head> element. *)
         | l, EOF
-          when Context.the_context context = `Fragment (HTML, "html")
-               || Context.the_context context = `Fragment (HTML, "head") ->
+          when Context.the_context context = Fragment (HTML, "html")
+               || Context.the_context context = Fragment (HTML, "head") ->
             emit_end l
         | (l, _) as t ->
             push tokens t;
@@ -1743,7 +1732,7 @@ let parse ?depth_limit requested_context report tokens =
             close_current_p_element l (fun () -> push_and_emit l t mode))
     | l, Start ({ name = "plaintext" } as t) ->
         close_current_p_element l (fun () ->
-            set_tokenizer_state `PLAINTEXT;
+            set_tokenizer_state PLAINTEXT;
             push_and_emit l t mode)
     | l, Start ({ name = "button" } as t) ->
         (fun mode' ->
@@ -1914,7 +1903,7 @@ let parse ?depth_limit requested_context report tokens =
     | l, Start ({ name = "textarea" } as t) ->
         frameset_ok := false;
         push_and_emit l t (fun () ->
-            set_tokenizer_state `RCDATA;
+            set_tokenizer_state RCDATA;
             match next_token tokens with
             | _, Char 0x000A -> text_mode mode
             | loc, String s when String.starts_with ~prefix:"\n" s ->
@@ -2034,11 +2023,11 @@ let parse ?depth_limit requested_context report tokens =
       end
   (* 8.2.5.2. *)
   and parse_rcdata original_mode =
-    set_tokenizer_state `RCDATA;
+    set_tokenizer_state RCDATA;
     text_mode original_mode
   (* 8.2.5.2. *)
   and parse_rawtext original_mode =
-    set_tokenizer_state `RAWTEXT;
+    set_tokenizer_state RAWTEXT;
     text_mode original_mode
   and anything_else_in_table mode ((l, _) as v) =
     report l (`Bad_content "table") !throw (fun () ->
