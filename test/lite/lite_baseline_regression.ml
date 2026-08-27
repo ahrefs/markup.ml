@@ -75,6 +75,11 @@ let () =
                   agrees "leading bom" "\xEF\xBB\xBFa";
                   agrees "bom in text" "a\xEF\xBB\xBFb";
                 ];
+           "attributes"
+           >::: [
+                  agrees "source order" "<p a=1 b=2 c=3>x";
+                  agrees "duplicates" "<p a=1 a=2 A=3>x";
+                ];
            "garbage tags"
            >::: [
                   agrees "at sign in name" "<x@y>z";

@@ -31,10 +31,18 @@ type t = {
 
 let decode = Html_entity_decoder.decode
 
+(* [attrs] is accumulated in reverse source order; the first occurrence of a
+   name wins, like src/baseline. *)
 let attributes attrs =
-  List.map
-    (fun (name, value) -> (name, Html_entity_decoder.decode_attribute value))
-    attrs
+  let rec dedupe seen = function
+    | [] -> []
+    | (name, value) :: rest ->
+        if List.mem name seen then dedupe seen rest
+        else
+          (name, Html_entity_decoder.decode_attribute value)
+          :: dedupe (name :: seen) rest
+  in
+  dedupe [] (List.rev attrs)
 
 let make_tag name attributes =
   { Token_tag.name; attributes; self_closing = false }
