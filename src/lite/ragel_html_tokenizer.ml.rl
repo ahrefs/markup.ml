@@ -1,4 +1,4 @@
-(* Derived from Devkit's htmlStream_ragel.ml.rl.
+(* Derived from Devkit htmlStream_ragel.ml.rl.
    Devkit is distributed under LGPL-2.1-only with the OCaml linking exception.
    The original source is available from https://github.com/ygrek/ocaml-webstack. *)
 
@@ -60,10 +60,8 @@ let emit_many scanner tokens =
  action tag { tag := String.lowercase_ascii @@ sub (); attrs := []; }
  action close_tag {
    let name = String.lowercase_ascii @@ sub () in
-   if name <> "br" then begin
-     emit scanner (End (make_tag name []));
-     pause ()
-   end;
+   emit scanner (End (make_tag name []));
+   pause ();
  }
  action directive { directive := String.lowercase_ascii @@ sub (); attrs := []; }
  action text {
