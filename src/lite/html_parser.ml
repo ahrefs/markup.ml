@@ -88,20 +88,18 @@ end = struct
     | ( HTML,
         ( "address" | "applet" | "area" | "article" | "aside" | "base"
         | "basefont" | "bgsound" | "blockquote" | "body" | "br" | "button"
-        | "caption" | "center" | "col" | "colgroup" | "dd" | "details"
-        | "dir" | "div" | "dl" | "dt" | "embed" | "fieldset"
-        | "figcaption" | "figure" | "footer" | "form" | "frame" | "frameset"
-        | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "head" | "header"
-        | "hgroup" | "hr" | "html" | "iframe" | "img" | "input" | "isindex"
-        | "li" | "link" | "listing" | "main" | "marquee" | "meta" | "nav"
-        | "noembed" | "noframes" | "noscript" | "object" | "ol" | "p"
-        | "param" | "plaintext" | "pre" | "script" | "section" | "select"
-        | "source" | "style" | "summary" | "table" | "tbody" | "td"
-        | "template" | "textarea" | "tfoot" | "th" | "thead" | "title"
-        | "tr" | "track" | "ul" | "wbr" | "xmp" ) ) ->
+        | "caption" | "center" | "col" | "colgroup" | "dd" | "details" | "dir"
+        | "div" | "dl" | "dt" | "embed" | "fieldset" | "figcaption" | "figure"
+        | "footer" | "form" | "frame" | "frameset" | "h1" | "h2" | "h3" | "h4"
+        | "h5" | "h6" | "head" | "header" | "hgroup" | "hr" | "html" | "iframe"
+        | "img" | "input" | "isindex" | "li" | "link" | "listing" | "main"
+        | "marquee" | "meta" | "nav" | "noembed" | "noframes" | "noscript"
+        | "object" | "ol" | "p" | "param" | "plaintext" | "pre" | "script"
+        | "section" | "select" | "source" | "style" | "summary" | "table"
+        | "tbody" | "td" | "template" | "textarea" | "tfoot" | "th" | "thead"
+        | "title" | "tr" | "track" | "ul" | "wbr" | "xmp" ) ) ->
         true
-    | MathML, ("mi" | "mo" | "mn" | "ms" | "mtext" | "annotation-xml") ->
-        true
+    | MathML, ("mi" | "mo" | "mn" | "ms" | "mtext" | "annotation-xml") -> true
     | SVG, ("foreignObject" | "desc" | "title") -> true
     | _ -> false
 
@@ -144,8 +142,7 @@ end = struct
     let rec scan () =
       next_token begin function
           | _, Doctype _ -> k `Document
-          | _, String s when not @@ is_whitespace_only s ->
-              k (`Fragment "body")
+          | _, String s when not @@ is_whitespace_only s -> k (`Fragment "body")
           | _, String _ -> scan ()
           | _, Char c when not @@ is_whitespace c -> k (`Fragment "body")
           | _, Char _ -> scan ()
@@ -245,8 +242,7 @@ end = struct
             | _ -> false
           in
           Some
-            (Element.create ~is_html_integration_point ~suppress:true name
-               (1, 1))
+            (Element.create ~is_html_integration_point ~suppress:true name (1, 1))
     in
     state := (context, context_element, None);
     k ()
@@ -482,8 +478,7 @@ end = struct
         ( "applet" | "caption" | "html" | "table" | "td" | "th" | "marquee"
         | "object" | "template" ) ) ->
         true
-    | MathML, ("mi" | "mo" | "mn" | "ms" | "mtext" | "annotation-xml") ->
-        true
+    | MathML, ("mi" | "mo" | "mn" | "ms" | "mtext" | "annotation-xml") -> true
     | SVG, ("foreignObject" | "desc" | "title") -> true
     | _ -> false
 
@@ -1306,9 +1301,10 @@ let parse ?depth_limit requested_context report tokens =
             close_element_with_implied name l mode
           else if
             Element.is_special name'
-            && match name' with
-               | HTML, ("address" | "div" | "p") -> false
-               | _ -> true
+            &&
+            match name' with
+            | HTML, ("address" | "div" | "p") -> false
+            | _ -> true
           then mode ()
           else scan more
     in
@@ -1691,8 +1687,7 @@ let parse ?depth_limit requested_context report tokens =
               | Some
                   {
                     element_name =
-                      ( HTML,
-                        (("h1" | "h2" | "h3" | "h4" | "h5" | "h6") as name') );
+                      HTML, (("h1" | "h2" | "h3" | "h4" | "h5" | "h6") as name');
                   } ->
                   misnested_tag l t name' (fun () -> pop l mode')
               | _ -> mode' ()) (fun () -> push_and_emit l t mode))
@@ -2116,9 +2111,7 @@ let parse ?depth_limit requested_context report tokens =
               reprocess (List.rev cs)
             else begin
               List.rev cs
-              |> List.iter (function
-                | l, Char c -> add_character l c
-                | _ -> ());
+              |> List.iter (function l, Char c -> add_character l c | _ -> ());
               mode ()
             end
       end
