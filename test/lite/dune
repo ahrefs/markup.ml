@@ -2,7 +2,7 @@
  (name lite_test_oracle)
  (wrapped false)
  (modules oracle)
- (libraries devkit markup))
+ (libraries markup))
 
 (executable
  (name lite_diff_corpus)

@@ -5,4 +5,4 @@
 
 (executable
  (name lite_diff_fuzz)
- (libraries lite_test_oracle markup markup.common markup.lite unix))
+ (libraries containers lite_test_oracle markup markup.common markup.lite unix))

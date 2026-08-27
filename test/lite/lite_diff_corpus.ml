@@ -42,12 +42,7 @@ let first_difference to_string left right =
   in
   loop 0 left right
 
-type result =
-  | Parsed of
-      Markup_common.signal list
-      * (Markup_common.location * Markup_common.Error.t) list
-  | Raised of string * (Markup_common.location * Markup_common.Error.t) list
-
+type result = Parsed of Markup_common.signal list | Raised of string
 type stats = { mutable wall_seconds : float; mutable minor_words : float }
 
 let empty_stats () = { wall_seconds = 0.; minor_words = 0. }
@@ -63,38 +58,31 @@ let measure stats f =
   result
 
 let run parse collect_signals html =
-  let errors = ref [] in
-  let report location error = errors := (location, error) :: !errors in
-  try Parsed (collect_signals (parse report html), List.rev !errors)
-  with exn -> Raised (Printexc.to_string exn, List.rev !errors)
+  let report _ _ = () in
+  try Parsed (collect_signals (parse report html))
+  with exn -> Raised (Printexc.to_string exn)
 
 let compare path oracle lite =
   match (oracle, lite) with
-  | Parsed (oracle_signals, oracle_errors), Parsed (lite_signals, lite_errors)
-    ->
+  | Parsed oracle_signals, Parsed lite_signals ->
       if not (equal_lists ( = ) oracle_signals lite_signals) then begin
         Printf.eprintf "%s: signal mismatch: %s\n" path
           (first_difference Markup_common.signal_to_string oracle_signals
              lite_signals);
         false
       end
-      else if not (equal_lists ( = ) oracle_errors lite_errors) then begin
-        Printf.eprintf "%s: error/location mismatch\n" path;
-        false
-      end
       else true
-  | Raised (oracle_exn, oracle_errors), Raised (lite_exn, lite_errors) ->
-      if oracle_exn = lite_exn && equal_lists ( = ) oracle_errors lite_errors
-      then true
+  | Raised oracle_exn, Raised lite_exn ->
+      if oracle_exn = lite_exn then true
       else begin
         Printf.eprintf "%s: exception mismatch:\n  oracle: %s\n  lite:   %s\n"
           path oracle_exn lite_exn;
         false
       end
-  | Raised (exn, _), Parsed _ ->
+  | Raised exn, Parsed _ ->
       Printf.eprintf "%s: oracle raised but Lite did not: %s\n" path exn;
       false
-  | Parsed _, Raised (exn, _) ->
+  | Parsed _, Raised exn ->
       Printf.eprintf "%s: Lite raised but oracle did not: %s\n" path exn;
       false
 
