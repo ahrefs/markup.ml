@@ -27,8 +27,11 @@ let preprocess is_valid_char report source =
       in
 
       let rec iterate () =
-        next source throw empty (function
-          | 0xFEFF when !first_char -> first_char := false; iterate ()
+        next source throw empty (fun c ->
+          let was_first = !first_char in
+          first_char := false;
+          match c with
+          | 0xFEFF when was_first -> iterate ()
 
           | 0x0D ->
             next source throw newline (function

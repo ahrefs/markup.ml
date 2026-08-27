@@ -45,29 +45,18 @@ let normalize_newlines html =
     Buffer.contents buffer
   end
 
-(* Like src/baseline: the uutf decoder drops a leading BOM, then the input
-   preprocessor drops the first U+FEFF found anywhere in the stream. *)
-let remove_first_bom html =
-  let length = String.length html in
-  let rec find index =
-    if index + 3 > length then None
-    else if
-      html.[index] = '\xEF'
-      && html.[index + 1] = '\xBB'
-      && html.[index + 2] = '\xBF'
-    then Some index
-    else find (index + 1)
-  in
-  match find 0 with
-  | None -> html
-  | Some index ->
-      String.sub html 0 index ^ String.sub html (index + 3) (length - index - 3)
-
+(* The baseline UTF-8 decoder consumes one leading BOM, and its input
+   preprocessor consumes one more leading U+FEFF. *)
 let strip_leading_bom html =
-  let bom = "\xEF\xBB\xBF" in
-  if String.length html >= 3 && String.sub html 0 3 = bom then
-    remove_first_bom (String.sub html 3 (String.length html - 3))
-  else remove_first_bom html
+  let length = String.length html in
+  let has_bom index =
+    index + 3 <= length
+    && html.[index] = '\xEF'
+    && html.[index + 1] = '\xBB'
+    && html.[index + 2] = '\xBF'
+  in
+  let start = if not (has_bom 0) then 0 else if has_bom 3 then 6 else 3 in
+  if start = 0 then html else String.sub html start (length - start)
 
 let create html =
   let html = if valid_utf_8 html then html else replace_malformed html in
