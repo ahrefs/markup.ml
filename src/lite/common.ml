@@ -16,13 +16,7 @@ let html_ns = Markup_common.Ns.html
 let svg_ns = Markup_common.Ns.svg
 let mathml_ns = Markup_common.Ns.mathml
 
-module Token_tag = struct
-  type t = {
-    name : string;
-    attributes : (string * string) list;
-    self_closing : bool;
-  }
-end
+module Token_tag = Markup__Common.Token_tag
 
 type xml_declaration = Markup_common.xml_declaration = {
   version : string;

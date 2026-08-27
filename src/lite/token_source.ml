@@ -12,18 +12,6 @@ type t = {
   mutable pushed : pushed_token list;
 }
 
-let baseline_tag (tag : Markup__Common.Token_tag.t) =
-  {
-    Common.Token_tag.name = tag.name;
-    attributes = tag.attributes;
-    self_closing = tag.self_closing;
-  }
-
-let token : Markup__Html_tokenizer.token -> Html_tokenizer.token = function
-  | `Start tag -> `Start (baseline_tag tag)
-  | `End tag -> `End (baseline_tag tag)
-  | (`Doctype _ | `Char _ | `String _ | `Comment _ | `EOF) as token -> token
-
 let create report html =
   let input, get_location =
     html |> Markup__Stream_io.string
@@ -73,7 +61,7 @@ let next source state (out : location_out) =
       | `Token ((line, column), value) ->
           out.line <- line;
           out.column <- column;
-          token value
+          value
       | `Exception exn -> raise exn
       | `End -> failwith "shared tokenizer ended without an EOF token"
       end
