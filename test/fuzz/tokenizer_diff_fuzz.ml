@@ -34,9 +34,11 @@ let preprocess bytes =
   in
   drain []
 
-let check_raw input =
+let check_raw_tokenizer input =
   let scalars, eof_location = preprocess input in
-  ignore (shadow_parse ~depth_limit:60 None ~eof_location scalars)
+  let reference, candidate = compare_data ~eof_location scalars in
+  if reference <> candidate then failwith "raw tokenizer mismatch";
+  (candidate.tokens, scalars, eof_location)
 
 let command byte =
   match byte mod 8 with
@@ -49,7 +51,7 @@ let command byte =
   | 6 -> Set_foreign false
   | _ -> Set_foreign true
 
-let check_script input =
+let check_script_tokenizer input =
   let length = String.length input in
   let rec decode offset index scalars commands =
     if offset + 3 >= length then (List.rev scalars, List.rev commands)
@@ -66,7 +68,8 @@ let check_script input =
   in
   let eof_location = (1 + (length mod 17), 1 + (length mod 71)) in
   let reference, candidate = script ~eof_location scalars commands in
-  if reference <> candidate then failwith "scripted tokenizer mismatch"
+  if reference <> candidate then failwith "scripted tokenizer mismatch";
+  candidate.tokens
 
 let token_tag byte =
   let names = [| "p"; "table"; "tr"; "td"; "svg"; "math"; "b"; "script" |] in
@@ -111,21 +114,26 @@ let baseline_token : Markup_lite.token -> Markup.Internals.token = function
   | `End tag -> `End (baseline_tag tag)
   | (`Doctype _ | `Char _ | `String _ | `Comment _ | `EOF) as token -> token
 
-let check_token_parser input =
-  let tokens =
-    String.to_seq input |> List.of_seq
-    |> List.mapi (fun index byte ->
-        ((1 + (index mod 13), 1 + (index mod 67)), token (Char.code byte)))
-  in
-  let tokens =
-    if String.length input > 0 && Char.code input.[0] land 4 <> 0 then tokens
-    else tokens @ [ ((1, String.length input + 1), `EOF) ]
-  in
-  let context =
-    if String.length input > 1 && Char.code input.[1] land 1 <> 0 then
-      `Fragment "table"
-    else `Document
-  in
+let lite_token : Tokenizer_diff.token -> Markup_lite.token = function
+  | `Start tag ->
+      `Start
+        Markup_lite.Token_tag.
+          {
+            name = tag.name;
+            attributes = tag.attributes;
+            self_closing = tag.self_closing;
+          }
+  | `End tag ->
+      `End
+        Markup_lite.Token_tag.
+          {
+            name = tag.name;
+            attributes = tag.attributes;
+            self_closing = tag.self_closing;
+          }
+  | (`Doctype _ | `Char _ | `String _ | `Comment _ | `EOF) as token -> token
+
+let compare_token_parsers ~context tokens =
   let baseline () =
     let reports = ref [] in
     let signals =
@@ -169,12 +177,36 @@ let check_token_parser input =
          (summarize expected) (summarize actual))
   end
 
+let parser_context input =
+  if String.length input > 1 && Char.code input.[1] land 1 <> 0 then
+    `Fragment "table"
+  else `Document
+
+let check_synthetic_parser input =
+  let tokens =
+    String.to_seq input |> List.of_seq
+    |> List.mapi (fun index byte ->
+        ((1 + (index mod 13), 1 + (index mod 67)), token (Char.code byte)))
+  in
+  let tokens =
+    if String.length input > 0 && Char.code input.[0] land 4 <> 0 then tokens
+    else tokens @ [ ((1, String.length input + 1), `EOF) ]
+  in
+  compare_token_parsers ~context:(parser_context input) tokens
+
 let check input =
-  if String.length input = 0 then check_raw input
-  else
-    match Char.code input.[0] land 3 with
-    | 0 -> check_raw input
-    | 1 -> check_script input
-    | _ -> check_token_parser input
+  let context = parser_context input in
+  if String.length input = 0 || Char.code input.[0] land 1 = 0 then begin
+    let tokens, scalars, eof_location = check_raw_tokenizer input in
+    compare_token_parsers ~context
+      (List.map (fun (location, token) -> (location, lite_token token)) tokens);
+    ignore (shadow_parse ~depth_limit:60 None ~eof_location scalars)
+  end
+  else begin
+    let tokens = check_script_tokenizer input in
+    compare_token_parsers ~context
+      (List.map (fun (location, token) -> (location, lite_token token)) tokens)
+  end;
+  check_synthetic_parser input
 
 let () = match read_input () with Some input -> check input | None -> ()
