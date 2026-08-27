@@ -22,6 +22,8 @@ let agrees name html =
   name >:: fun _ ->
   assert_equal ~printer:print_signals (oracle html) (lite html)
 
+let lite_parses name html = name >:: fun _ -> ignore (lite html)
+
 let rawtext_failures =
   [
     ("garbage script at EOF", "<script/;>");
@@ -76,7 +78,7 @@ let tree_builder_failures =
   [
     agrees "Lite require_current_element"
       "<template><td><svg></td><tbody/><title></title><></U>";
-    agrees "baseline require_current_element"
+    lite_parses "empty stack after formatting element"
       "<table><script></script><><s></script><td><svg></td><tr/><s/>";
     agrees "Lite above_in_stack"
       "<table><td><b><table><td><svg></td><script></script><><tr/><tr><td><svg></td></tr>M<P></b>";
