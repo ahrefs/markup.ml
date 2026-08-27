@@ -92,6 +92,28 @@ let () =
                   agrees "with attribute and end tag"
                     "<foo@bar baz=1>t</foo@bar>";
                 ];
+           "tag open text"
+           >::: [
+                  agrees "empty tag" "<>x";
+                  agrees "comparison operators" "text < 5 and > 3";
+                  agrees "space before name" "< div>x</div>";
+                ];
+           "attribute names"
+           >::: [
+                  agrees "quote as name" "<div \"=\"\">x";
+                  agrees "equals as name" "<p =\"v\">x";
+                  agrees "control character in name" "<p a\x01=1>x";
+                ];
+           "rawtext elements"
+           >::: [
+                  agrees "noembed" "<noembed><span>x</noembed>y";
+                  agrees "xmp" "<xmp>a<b>c</xmp>d";
+                ];
+           "plaintext"
+           >::: [
+                  agrees "swallows rest" "<p><plaintext>a<b>";
+                  agrees "end tag is text" "<plaintext>x</plaintext>y";
+                ];
            "fragment foreign"
            >::: [
                   agrees ~context:(`Fragment "svg") "td in svg" "<td>x";

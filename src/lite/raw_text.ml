@@ -19,6 +19,14 @@ let add buffer byte =
 let is_whitespace = function '\t' | '\n' | '\x0C' | ' ' -> true | _ -> false
 let is_letter = function 'a' .. 'z' | 'A' .. 'Z' -> true | _ -> false
 
+let plaintext data start =
+  let length = String.length data in
+  let buffer = Buffer.create (length - start) in
+  for index = start to length - 1 do
+    add buffer data.[index]
+  done;
+  { text = Buffer.contents buffer; had_end_tag = false; next = length }
+
 let scan data start tag =
   let length = String.length data in
   let decode = match tag with "title" | "textarea" -> true | _ -> false in
