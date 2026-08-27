@@ -12,4 +12,4 @@ type token =
   | Comment of string
   | EOF
 
-type state = [ `Data | `RCDATA | `RAWTEXT | `Script_data | `PLAINTEXT ]
+type state = Data | RCDATA | RAWTEXT | Script_data | PLAINTEXT
