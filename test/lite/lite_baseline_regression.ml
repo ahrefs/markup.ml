@@ -202,10 +202,10 @@ let () =
                   agrees "after col" "<table><col>\x0C";
                   agrees "after template" "<template></template>\x0C";
                 ];
-           "known divergence: nul reconstructs formatting"
+           "nul does not reconstruct formatting"
            >::: [
-                  disagrees "p b p" "<p><b><p>\x00";
-                  disagrees "li s li" "<li><s><li>\x00<p";
+                  agrees "p b p" "<p><b><p>\x00";
+                  agrees "li s li" "<li><s><li>\x00<p";
                 ];
            "known divergence: fragment breakout rawtext eof"
            >::: [

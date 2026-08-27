@@ -1577,10 +1577,12 @@ let parse ?depth_limit requested_context report tokens =
     | l, `Char 0 -> report l (`Bad_token ("U+0000", "body", "null")) !throw mode
     | l, `String s ->
         let s = remove_nulls s in
-        reconstruct_active_formatting_elements (fun () ->
-            add_string l s;
-            if not @@ is_whitespace_only s then frameset_ok := false;
-            mode ())
+        if s = "" then mode ()
+        else
+          reconstruct_active_formatting_elements (fun () ->
+              add_string l s;
+              if not @@ is_whitespace_only s then frameset_ok := false;
+              mode ())
     | l, `Char ((0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) as c) ->
         reconstruct_active_formatting_elements (fun () ->
             add_character l c;
