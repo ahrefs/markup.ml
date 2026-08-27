@@ -20,6 +20,11 @@
  (libraries containers markup markup.lite unix))
 
 (executable
+ (name lite_token_diff_corpus)
+ (modules lite_token_diff_corpus)
+ (libraries markup markup.lite))
+
+(executable
  (name lite_baseline_regression)
  (modules lite_baseline_regression)
  (libraries markup markup.common markup.lite ounit2))
