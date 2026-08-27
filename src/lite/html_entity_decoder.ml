@@ -3,6 +3,8 @@
 
 let replacement = Uchar.of_int 0xFFFD
 
+exception Undecodable_chunk
+
 type reference = Codepoint of int | Name of string
 type entity = One of int | Two of int * int
 
@@ -71,7 +73,12 @@ let named_entities =
      Str_tbl.replace entities "rang" (One 0x232A);
      entities)
 
+let is_undecodable codepoint =
+  (codepoint >= 0xD800 && codepoint <= 0xDFFF)
+  || codepoint = 0xFFFE || codepoint = 0xFFFF
+
 let add_uchar buffer codepoint =
+  if is_undecodable codepoint then raise Undecodable_chunk;
   let uchar =
     try Uchar.of_int codepoint with Invalid_argument _ -> replacement
   in
@@ -80,7 +87,9 @@ let add_uchar buffer codepoint =
 let add_utf_8 buffer text position length =
   Uutf.String.fold_utf_8 ~pos:position ~len:length
     (fun () _ -> function
-      | `Uchar uchar -> Uutf.Buffer.add_utf_8 buffer uchar
+      | `Uchar uchar ->
+          if is_undecodable (Uchar.to_int uchar) then raise Undecodable_chunk;
+          Uutf.Buffer.add_utf_8 buffer uchar
       | `Malformed _ -> invalid_arg "malformed UTF-8")
     () text
 
@@ -160,4 +169,6 @@ let decode_references text =
   Buffer.contents buffer
 
 let decode text =
-  if String.contains text '&' then decode_references text else text
+  if String.contains text '&' then
+    try decode_references text with Undecodable_chunk -> text
+  else text
