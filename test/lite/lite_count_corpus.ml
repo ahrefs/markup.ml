@@ -14,9 +14,11 @@ let arguments () =
       Sys.argv.(0)
   in
   let specs =
-    [ ( "--parser",
+    [
+      ( "--parser",
         Arg.Symbol ([ "both"; "oracle"; "lite" ], parser),
-        " Select which parser to run (default: both)" ) ]
+        " Select which parser to run (default: both)" );
+    ]
   in
   Arg.parse specs
     (fun directory -> directories := directory :: !directories)

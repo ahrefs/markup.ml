@@ -4,11 +4,9 @@
 let html = "<p>&sup2;</p>"
 
 let main_signals () =
-  html
-  |> Markup.string
+  html |> Markup.string
   |> Markup.parse_html ~context:`Document
-  |> Markup.signals
-  |> Markup.to_list
+  |> Markup.signals |> Markup.to_list
 
 let lite_signals () =
   let signals = ref [] in

@@ -4,7 +4,7 @@ build :
 
 .PHONY : format
 format :
-	dune build @src/lite/fmt --auto-promote || dune build @src/lite/fmt
+	dune build @src/lite/fmt @test/lite/fmt --auto-promote || dune build @src/lite/fmt
 
 # This is not part of the ordinary build process. The output file, entities.ml,
 # is checked into git.
