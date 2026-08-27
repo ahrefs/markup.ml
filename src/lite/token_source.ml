@@ -12,6 +12,7 @@ type t = {
   scanner : Ragel_html_tokenizer.t;
   mutable pushed : pushed_token list;
   mutable foreign : unit -> bool;
+  mutable foreign_text : (string * int * int * int) option;
 }
 
 let valid_utf_8 = String.is_valid_utf_8
@@ -67,6 +68,7 @@ let create html =
     scanner = Ragel_html_tokenizer.create html;
     pushed = [];
     foreign = (fun () -> false);
+    foreign_text = None;
   }
 
 let of_tokens tokens =
@@ -77,9 +79,20 @@ let of_tokens tokens =
     scanner = Ragel_html_tokenizer.create "";
     pushed;
     foreign = (fun () -> false);
+    foreign_text = None;
   }
 
 let location () = { line = 1; column = -1 }
+
+let next_foreign_character source (out : location_out) text index line column =
+  let decoded = String.get_utf_8_uchar text index in
+  let uchar = Uchar.utf_decode_uchar decoded in
+  let next = index + Uchar.utf_decode_length decoded in
+  source.foreign_text <-
+    (if next < String.length text then Some (text, next, line, column) else None);
+  out.line <- line;
+  out.column <- column;
+  `Char (Uchar.to_int uchar)
 
 let next source state (out : location_out) =
   match source.pushed with
@@ -88,7 +101,20 @@ let next source state (out : location_out) =
       out.line <- line;
       out.column <- column;
       token
-  | [] -> Ragel_html_tokenizer.next source.scanner state (source.foreign ()) out
+  | [] ->
+      begin match source.foreign_text with
+      | Some (text, index, line, column) ->
+          next_foreign_character source out text index line column
+      | None ->
+          let foreign = source.foreign () in
+          begin match
+            Ragel_html_tokenizer.next source.scanner state foreign out
+          with
+          | `String text when foreign && text <> "" ->
+              next_foreign_character source out text 0 out.line out.column
+          | token -> token
+          end
+      end
 
 let set_foreign source foreign = source.foreign <- foreign
 

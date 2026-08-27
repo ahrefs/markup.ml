@@ -185,11 +185,11 @@ let () =
                          (fun (location, _) -> location = (7, 11))
                          !reports) );
                 ];
-           "known divergence: foreign breakout reentry"
+           "foreign breakout reentry"
            >::: [
-                  disagrees "svg b svg text" "<svg><b><svg>ab";
-                  disagrees "math b math text" "<math><b><math>xy";
-                  disagrees "svg s svg digits" "<svg><s><svg>00";
+                  agrees "svg b svg text" "<svg><b><svg>ab";
+                  agrees "math b math text" "<math><b><math>xy";
+                  agrees "svg s svg digits" "<svg><s><svg>00";
                 ];
            "cdata in foreign content"
            >::: [
