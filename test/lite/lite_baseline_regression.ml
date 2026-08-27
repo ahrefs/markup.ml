@@ -29,6 +29,17 @@ let agrees ?(context = `Document) name html =
   assert_equal ~printer:print_signals (baseline context html)
     (lite context html)
 
+let agrees_with_text ?(context = `Document) name html text =
+  name >:: fun _ ->
+  let expected = baseline context html in
+  let actual = lite context html in
+  assert_equal ~printer:print_signals expected actual;
+  assert_bool "expected text signal was not preserved"
+    (List.exists
+       (function
+         | `Text strings -> String.concat "" strings = text | _ -> false)
+       actual)
+
 let disagrees ?(context = `Document) name html =
   name >:: fun _ ->
   assert_bool "baseline and lite now agree; promote this test to [agrees]"
@@ -91,7 +102,9 @@ let () =
            "bom"
            >::: [
                   agrees "leading bom" "\xEF\xBB\xBFa";
-                  agrees "bom in text" "a\xEF\xBB\xBFb";
+                  agrees_with_text "internal bom is preserved" "a\xEF\xBB\xBFb"
+                    "a\xEF\xBB\xBFb";
+                  agrees "two leading boms" "\xEF\xBB\xBF\xEF\xBB\xBFa";
                 ];
            "table whitespace"
            >::: [
