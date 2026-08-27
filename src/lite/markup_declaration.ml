@@ -34,14 +34,10 @@ let bogus_comment data start =
   let buffer = Buffer.create 32 in
   let rec consume index =
     if index >= length then
-      { token = Html_tokenizer.Comment (Buffer.contents buffer); next = index }
+      { token = `Comment (Buffer.contents buffer); next = index }
     else
       match data.[index] with
-      | '>' ->
-          {
-            token = Html_tokenizer.Comment (Buffer.contents buffer);
-            next = index + 1;
-          }
+      | '>' -> { token = `Comment (Buffer.contents buffer); next = index + 1 }
       | byte ->
           add buffer byte;
           consume (index + 1)
@@ -52,7 +48,7 @@ let comment data start =
   let length = String.length data in
   let buffer = Buffer.create 64 in
   let finish index =
-    { token = Html_tokenizer.Comment (Buffer.contents buffer); next = index }
+    { token = `Comment (Buffer.contents buffer); next = index }
   in
   let rec comment_start index =
     if index >= length then finish index
@@ -144,7 +140,7 @@ let doctype data start =
     in
     {
       token =
-        Html_tokenizer.Doctype
+        `Doctype
           {
             doctype_name = contents name;
             public_identifier = contents public_identifier;

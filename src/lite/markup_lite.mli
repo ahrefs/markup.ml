@@ -25,6 +25,23 @@ type doctype = Markup_common.doctype = {
 
 type signal = Markup_common.signal
 
+module Token_tag : sig
+  type t = {
+    name : string;
+    attributes : (string * string) list;
+    self_closing : bool;
+  }
+end
+
+type token =
+  [ `Doctype of doctype
+  | `Start of Token_tag.t
+  | `End of Token_tag.t
+  | `Char of int
+  | `String of string
+  | `Comment of string
+  | `EOF ]
+
 module Error = Markup_common.Error
 module Ns = Markup_common.Ns
 
@@ -35,6 +52,13 @@ val parse_html :
   ?context:[ `Document | `Fragment of string ] ->
   ?depth_limit:int ->
   string ->
+  (signal, sync) stream
+
+val parse_tokens :
+  ?report:(location -> Error.t -> unit) ->
+  ?context:[ `Document | `Fragment of string ] ->
+  ?depth_limit:int ->
+  (location * token) list ->
   (signal, sync) stream
 
 val iter : ('a -> unit) -> ('a, sync) stream -> unit

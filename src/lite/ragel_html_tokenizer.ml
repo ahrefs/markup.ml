@@ -81,10 +81,10 @@ let emit_text scanner text =
     else index
   in
   let boundary = whitespace_end 0 in
-  if boundary = 0 || boundary = length then emit scanner (String text)
+  if boundary = 0 || boundary = length then emit scanner (`String text)
   else begin
-    emit scanner (String (String.sub text 0 boundary));
-    emit scanner (String (String.sub text boundary (length - boundary)))
+    emit scanner (`String (String.sub text 0 boundary));
+    emit scanner (`String (String.sub text boundary (length - boundary)))
   end
 
 let _htmlstream_trans_keys : int array =
@@ -592,7 +592,7 @@ let create data =
     tag_scan = -1;
     end_scan = -1;
     line = 1;
-    tokens = Array.make buffer_capacity EOF;
+    tokens = Array.make buffer_capacity `EOF;
     lines = Array.make buffer_capacity 1;
     read = 0;
     write = 0;
@@ -629,7 +629,7 @@ let run scanner =
         let attrs = attributes result.Tag_attributes.attributes in
         let self_closing = result.Tag_attributes.self_closing in
         scanner.last_start_tag <- name;
-        emit scanner (Start (make_tag ~self_closing name attrs));
+        emit scanner (`Start (make_tag ~self_closing name attrs));
         result.Tag_attributes.next
       end
     in
@@ -645,7 +645,7 @@ let run scanner =
     scanner.end_scan <- -1;
     let name = !tag in
     let result = Tag_attributes.scan data start in
-    if result.Tag_attributes.ok then emit scanner (End (make_tag name []));
+    if result.Tag_attributes.ok then emit scanner (`End (make_tag name []));
     let next =
       if result.Tag_attributes.ok then result.Tag_attributes.next else !eof
     in
@@ -748,7 +748,7 @@ let run scanner =
               ()
           | 6 ->
               begin
-                emit scanner (String "<");
+                emit scanner (`String "<");
                 pause ();
                 p.contents <- p.contents - 1;
                 begin
@@ -803,7 +803,7 @@ let run scanner =
               ()
           | 7 ->
               begin
-                emit scanner (String "<");
+                emit scanner (`String "<");
                 pause ();
                 p.contents <- p.contents - 1;
                 begin
@@ -879,13 +879,13 @@ let run scanner =
                 ()
             | 5 ->
                 begin
-                  emit scanner (String "<")
+                  emit scanner (`String "<")
                 end;
                 ()
             | 9 ->
                 begin
-                  emit scanner (String "<");
-                  emit scanner (String "/")
+                  emit scanner (`String "<");
+                  emit scanner (`String "/")
                 end;
                 ()
             | _ -> ()
@@ -918,7 +918,7 @@ let scan_raw_state scanner state =
       match (state : Html_tokenizer.state) with
       | PLAINTEXT ->
           let body = Raw_text.plaintext data start in
-          emit scanner (String body.Raw_text.text);
+          emit scanner (`String body.Raw_text.text);
           body.Raw_text.next
       | _ ->
           let name = scanner.last_start_tag in
@@ -929,14 +929,14 @@ let scan_raw_state scanner state =
               | RCDATA -> decode body.Raw_text.text
               | _ -> body.Raw_text.text
             in
-            emit scanner (String text);
+            emit scanner (`String text);
             body.Raw_text.next
           end
           else begin
             let body = Raw_text.scan data start name in
-            emit scanner (String body.Raw_text.text);
+            emit scanner (`String body.Raw_text.text);
             if body.Raw_text.had_end_tag then
-              emit scanner (End (make_tag name []));
+              emit scanner (`End (make_tag name []));
             body.Raw_text.next
           end
     in
@@ -954,14 +954,14 @@ let rec next scanner (state : Html_tokenizer.state) (location : location_out) =
     let token = scanner.tokens.(index) in
     location.line <- scanner.lines.(index);
     location.column <- -1;
-    scanner.tokens.(index) <- EOF;
+    scanner.tokens.(index) <- `EOF;
     scanner.read <- index + 1;
     token
   end
   else if scanner.finished then begin
     location.line <- scanner.line;
     location.column <- -1;
-    EOF
+    `EOF
   end
   else if state <> Data then begin
     scanner.read <- 0;

@@ -81,6 +81,12 @@ let create html =
   let html = normalize_newlines html in
   { scanner = Ragel_html_tokenizer.create html; pushed = [] }
 
+let of_tokens tokens =
+  let pushed =
+    List.map (fun ((line, column), token) -> { token; line; column }) tokens
+  in
+  { scanner = Ragel_html_tokenizer.create ""; pushed }
+
 let location () = { line = 1; column = -1 }
 
 let next source state (out : location_out) =

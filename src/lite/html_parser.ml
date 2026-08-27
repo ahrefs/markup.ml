@@ -1,9 +1,10 @@
 (* This file is part of Markup.ml, released under the MIT license. See
    LICENSE.md for details, or visit https://github.com/aantron/markup.ml. *)
 
+[@@@warning "-32-37"]
+
 open Common
 open Token_tag
-open Html_tokenizer
 open Kstream
 
 (* Namespaces for pattern matching. *)
@@ -128,7 +129,7 @@ end = struct
     let next_token k =
       next_expected tokens throw (fun token ->
           begin match token with
-          | _, Start { name } -> last_name := Some name
+          | _, `Start { name } -> last_name := Some name
           | _ -> ()
           end;
           k token)
@@ -141,37 +142,38 @@ end = struct
 
     let rec scan () =
       next_token begin function
-          | _, Doctype _ -> k `Document
-          | _, String s when not @@ is_whitespace_only s -> k (`Fragment "body")
-          | _, String _ -> scan ()
-          | _, Char c when not @@ is_whitespace c -> k (`Fragment "body")
-          | _, Char _ -> scan ()
-          | _, EOF -> k (`Fragment "body")
-          | _, Start { name = "html" } -> k `Document
-          | _, Start { name = "head" | "body" | "frameset" } ->
+          | _, `Doctype _ -> k `Document
+          | _, `String s when not @@ is_whitespace_only s ->
+              k (`Fragment "body")
+          | _, `String _ -> scan ()
+          | _, `Char c when not @@ is_whitespace c -> k (`Fragment "body")
+          | _, `Char _ -> scan ()
+          | _, `EOF -> k (`Fragment "body")
+          | _, `Start { name = "html" } -> k `Document
+          | _, `Start { name = "head" | "body" | "frameset" } ->
               k (`Fragment "html")
           | ( _,
-              Start
+              `Start
                 {
                   name =
                     ( "base" | "basefont" | "bgsound" | "link" | "meta"
                     | "noframes" | "style" | "template" | "title" );
                 } ) ->
               k (`Fragment "head")
-          | _, Start { name = "frame" } -> k (`Fragment "frameset")
-          | _, Start { name = "li" } -> k (`Fragment "ul")
+          | _, `Start { name = "frame" } -> k (`Fragment "frameset")
+          | _, `Start { name = "li" } -> k (`Fragment "ul")
           | ( _,
-              Start
+              `Start
                 {
                   name =
                     "caption" | "col" | "colgroup" | "tbody" | "tfoot" | "thead";
                 } ) ->
               k (`Fragment "table")
-          | _, Start { name = "tr" } -> k (`Fragment "tbody")
-          | _, Start { name = "td" | "th" } -> k (`Fragment "tr")
-          | _, Start { name = "optgroup" | "option" } -> k (`Fragment "select")
+          | _, `Start { name = "tr" } -> k (`Fragment "tbody")
+          | _, `Start { name = "td" | "th" } -> k (`Fragment "tr")
+          | _, `Start { name = "optgroup" | "option" } -> k (`Fragment "select")
           | ( _,
-              Start
+              `Start
                 {
                   name =
                     ( "altglyph" | "altglyphdef" | "altglyphitem" | "animate"
@@ -196,7 +198,7 @@ end = struct
                 } ) ->
               k (`Fragment "svg")
           | ( _,
-              Start
+              `Start
                 {
                   name =
                     ( "maction" | "maligngroup" | "malignmark" | "menclose"
@@ -210,8 +212,8 @@ end = struct
                     | "annotation-xml" );
                 } ) ->
               k (`Fragment "math")
-          | _, Start _ -> k (`Fragment "body")
-          | _, (End _ | Comment _) -> scan ()
+          | _, `Start _ -> k (`Fragment "body")
+          | _, (`End _ | `Comment _) -> scan ()
         end
     in
 
@@ -984,11 +986,11 @@ end
 
 let parse ?depth_limit requested_context report tokens =
   let context = Context.uninitialized () in
-  let tokenizer_state = ref Data in
+  let tokenizer_state = ref Html_tokenizer.Data in
   let token_location = Token_source.location () in
   let next_token tokens =
     let state = !tokenizer_state in
-    if state <> Data then tokenizer_state := Data;
+    if state <> Html_tokenizer.Data then tokenizer_state := Html_tokenizer.Data;
     let token = Token_source.next tokens state token_location in
     ((token_location.line, token_location.column), token)
   in
@@ -1057,13 +1059,13 @@ let parse ?depth_limit requested_context report tokens =
     Context.initialize requested_context context throw_ (fun () ->
         let initial_tokenizer_state =
           match Context.the_context context with
-          | Fragment (HTML, ("title" | "textarea")) -> RCDATA
+          | Fragment (HTML, ("title" | "textarea")) -> Html_tokenizer.RCDATA
           | Fragment
               (HTML, ("style" | "xmp" | "iframe" | "noembed" | "noframes")) ->
-              RAWTEXT
-          | Fragment (HTML, "script") -> Script_data
-          | Fragment (HTML, "plaintext") -> PLAINTEXT
-          | _ -> Data
+              Html_tokenizer.RAWTEXT
+          | Fragment (HTML, "script") -> Html_tokenizer.Script_data
+          | Fragment (HTML, "plaintext") -> Html_tokenizer.PLAINTEXT
+          | _ -> Html_tokenizer.Data
         in
 
         set_tokenizer_state initial_tokenizer_state;
@@ -1366,17 +1368,17 @@ let parse ?depth_limit requested_context report tokens =
           match (Stack.adjusted_current_element context open_elements, t) with
           | None, _ -> false
           | Some { element_name = HTML, _ }, _ -> false
-          | Some { element_name }, Start { name }
+          | Some { element_name }, `Start { name }
             when Foreign.is_mathml_text_integration_point element_name
                  && name <> "mglyph" && name <> "malignmark" ->
               false
           | ( Some { element_name = MathML, "annotation-xml" },
-              Start { name = "svg" } ) ->
+              `Start { name = "svg" } ) ->
               false
-          | Some { is_html_integration_point = true }, Start _ -> false
-          | Some { is_html_integration_point = true }, Char _ -> false
-          | Some { is_html_integration_point = true }, String _ -> false
-          | _, EOF -> false
+          | Some { is_html_integration_point = true }, `Start _ -> false
+          | Some { is_html_integration_point = true }, `Char _ -> false
+          | Some { is_html_integration_point = true }, `String _ -> false
+          | _, `EOF -> false
           | _ -> true
         in
 
@@ -1386,11 +1388,11 @@ let parse ?depth_limit requested_context report tokens =
   (* 8.2.5.4.1. *)
   and initial_mode () =
     dispatch tokens begin function
-        | _, Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) ->
+        | _, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) ->
             initial_mode ()
-        | _, String s when is_whitespace_only s -> initial_mode ()
-        | l, Comment s -> emit l (`Comment s) initial_mode
-        | l, Doctype d -> emit l (`Doctype d) before_html_mode
+        | _, `String s when is_whitespace_only s -> initial_mode ()
+        | l, `Comment s -> emit l (`Comment s) initial_mode
+        | l, `Doctype d -> emit l (`Doctype d) before_html_mode
         | v ->
             push tokens v;
             before_html_mode ()
@@ -1398,16 +1400,16 @@ let parse ?depth_limit requested_context report tokens =
   (* 8.2.5.4.2. *)
   and before_html_mode () =
     dispatch tokens begin function
-        | l, Doctype _ ->
+        | l, `Doctype _ ->
             report l (`Bad_document "doctype should be first") !throw
               before_html_mode
-        | l, Comment s -> emit l (`Comment s) before_html_mode
-        | _, Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) ->
+        | l, `Comment s -> emit l (`Comment s) before_html_mode
+        | _, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) ->
             before_html_mode ()
-        | _, String s when is_whitespace_only s -> before_html_mode ()
-        | l, Start ({ name = "html" } as t) ->
+        | _, `String s when is_whitespace_only s -> before_html_mode ()
+        | l, `Start ({ name = "html" } as t) ->
             push_and_emit l t before_head_mode
-        | l, End { name }
+        | l, `End { name }
           when not @@ list_mem_string name [ "head"; "body"; "html"; "br" ] ->
             unmatched_end_tag l name before_html_mode
         | (l, _) as v ->
@@ -1417,19 +1419,19 @@ let parse ?depth_limit requested_context report tokens =
   (* 8.2.5.4.3. *)
   and before_head_mode () =
     dispatch tokens begin function
-        | _, Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) ->
+        | _, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) ->
             before_head_mode ()
-        | _, String s when is_whitespace_only s -> before_head_mode ()
-        | l, Comment s -> emit l (`Comment s) before_head_mode
-        | l, Doctype _ ->
+        | _, `String s when is_whitespace_only s -> before_head_mode ()
+        | l, `Comment s -> emit l (`Comment s) before_head_mode
+        | l, `Doctype _ ->
             report l (`Bad_document "doctype should be first") !throw
               before_head_mode
-        | (_, Start { name = "html" }) as v ->
+        | (_, `Start { name = "html" }) as v ->
             in_body_mode_rules "html" before_head_mode v
-        | l, Start ({ name = "head" } as t) ->
+        | l, `Start ({ name = "head" } as t) ->
             head_seen := true;
             push_and_emit l t in_head_mode
-        | l, End { name }
+        | l, `End { name }
           when not @@ list_mem_string name [ "head"; "body"; "html"; "br" ] ->
             report l (`Unmatched_end_tag name) !throw before_head_mode
         | (l, _) as v ->
@@ -1442,39 +1444,39 @@ let parse ?depth_limit requested_context report tokens =
     dispatch tokens (fun v -> in_head_mode_rules in_head_mode v)
   (* 8.2.5.4.4. *)
   and in_head_mode_rules mode = function
-    | l, Char ((0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) as c) ->
+    | l, `Char ((0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) as c) ->
         add_character l c;
         mode ()
-    | l, String s when is_whitespace_only s ->
+    | l, `String s when is_whitespace_only s ->
         add_string l s;
         mode ()
-    | l, Comment s -> emit l (`Comment s) mode
-    | l, Doctype _ ->
+    | l, `Comment s -> emit l (`Comment s) mode
+    | l, `Doctype _ ->
         report l (`Bad_document "doctype should be first") !throw mode
-    | (_, Start { name = "html" }) as v ->
+    | (_, `Start { name = "html" }) as v ->
         in_body_mode_rules "head" in_head_mode v
     | ( l,
-        Start
+        `Start
           ({ name = "base" | "basefont" | "bgsound" | "link" | "meta" } as t) )
       ->
         push_and_emit ~acknowledge:true l t (fun () -> pop l mode)
-    | l, Start ({ name = "title" } as t) ->
+    | l, `Start ({ name = "title" } as t) ->
         push_and_emit l t (fun () -> parse_rcdata mode)
-    | l, Start ({ name = "noframes" | "style" } as t) ->
+    | l, `Start ({ name = "noframes" | "style" } as t) ->
         push_and_emit l t (fun () -> parse_rawtext mode)
-    | l, Start ({ name = "noscript" } as t) ->
+    | l, `Start ({ name = "noscript" } as t) ->
         push_and_emit l t in_head_noscript_mode
-    | l, Start ({ name = "script" } as t) ->
+    | l, `Start ({ name = "script" } as t) ->
         push_and_emit l t (fun () ->
-            set_tokenizer_state Script_data;
+            set_tokenizer_state Html_tokenizer.Script_data;
             text_mode mode)
-    | l, End { name = "head" } -> pop l after_head_mode
-    | l, Start ({ name = "template" } as t) ->
+    | l, `End { name = "head" } -> pop l after_head_mode
+    | l, `Start ({ name = "template" } as t) ->
         Active.add_marker active_formatting_elements;
         frameset_ok := false;
         Template.push template_insertion_modes in_template_mode;
         push_and_emit l t in_template_mode
-    | l, End { name = "template" } ->
+    | l, `End { name = "template" } ->
         if not @@ Stack.has open_elements "template" then
           report l (`Unmatched_end_tag "template") !throw mode
         else begin
@@ -1482,8 +1484,8 @@ let parse ?depth_limit requested_context report tokens =
           Template.pop template_insertion_modes;
           close_element_with_implied "template" l (fun () -> reset_mode () ())
         end
-    | l, Start ({ name = "head" } as t) -> misnested_tag l t "head" mode
-    | l, End { name } when not @@ list_mem_string name [ "body"; "html"; "br" ]
+    | l, `Start ({ name = "head" } as t) -> misnested_tag l t "head" mode
+    | l, `End { name } when not @@ list_mem_string name [ "body"; "html"; "br" ]
       ->
         report l (`Unmatched_end_tag name) !throw mode
     | (l, _) as v ->
@@ -1492,27 +1494,27 @@ let parse ?depth_limit requested_context report tokens =
   (* 8.2.5.4.5. *)
   and in_head_noscript_mode () =
     dispatch tokens begin function
-        | l, Doctype _ ->
+        | l, `Doctype _ ->
             report l (`Bad_document "doctype should be first") !throw
               in_head_noscript_mode
-        | (_, Start { name = "html" }) as v ->
+        | (_, `Start { name = "html" }) as v ->
             in_body_mode_rules "noscript" in_head_noscript_mode v
-        | l, End { name = "noscript" } -> pop l in_head_mode
-        | (_, String s) as v when is_whitespace_only s ->
+        | l, `End { name = "noscript" } -> pop l in_head_mode
+        | (_, `String s) as v when is_whitespace_only s ->
             in_head_mode_rules in_head_noscript_mode v
-        | ( _, Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020)
-          | _, Comment _
+        | ( _, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020)
+          | _, `Comment _
           | ( _,
-              Start
+              `Start
                 {
                   name =
                     ( "basefont" | "bgsound" | "link" | "meta" | "noframes"
                     | "style" );
                 } ) ) as v ->
             in_head_mode_rules in_head_noscript_mode v
-        | l, Start ({ name = "head" | "noscript" } as t) ->
+        | l, `Start ({ name = "head" | "noscript" } as t) ->
             misnested_tag l t "noscript" in_head_noscript_mode
-        | l, End { name } when name <> "br" ->
+        | l, `End { name } when name <> "br" ->
             report l (`Unmatched_end_tag name) !throw in_head_noscript_mode
         | (l, _) as v ->
             report l (`Bad_content "noscript") !throw (fun () ->
@@ -1522,25 +1524,25 @@ let parse ?depth_limit requested_context report tokens =
   (* 8.2.5.4.6. *)
   and after_head_mode () =
     dispatch tokens begin function
-        | l, Char ((0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) as c) ->
+        | l, `Char ((0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) as c) ->
             add_character l c;
             after_head_mode ()
-        | l, String s when is_whitespace_only s ->
+        | l, `String s when is_whitespace_only s ->
             add_string l s;
             after_head_mode ()
-        | l, Comment s -> emit l (`Comment s) after_head_mode
-        | l, Doctype _ ->
+        | l, `Comment s -> emit l (`Comment s) after_head_mode
+        | l, `Doctype _ ->
             report l (`Bad_document "doctype should be first") !throw
               after_head_mode
-        | (_, Start { name = "html" }) as v ->
+        | (_, `Start { name = "html" }) as v ->
             in_body_mode_rules "html" after_head_mode v
-        | l, Start ({ name = "body" } as t) ->
+        | l, `Start ({ name = "body" } as t) ->
             frameset_ok := false;
             push_and_emit l t in_body_mode
-        | l, Start ({ name = "frameset" } as t) ->
+        | l, `Start ({ name = "frameset" } as t) ->
             push_and_emit l t in_frameset_mode
         | ( l,
-            Start
+            `Start
               ({
                  name =
                    ( "base" | "basefont" | "bgsound" | "link" | "meta"
@@ -1548,18 +1550,18 @@ let parse ?depth_limit requested_context report tokens =
                } as t) ) as v ->
             misnested_tag l t "html" (fun () ->
                 in_head_mode_rules after_head_mode v)
-        | (_, End { name = "template" }) as v ->
+        | (_, `End { name = "template" }) as v ->
             in_head_mode_rules after_head_mode v
-        | l, Start { name = "head" } ->
+        | l, `Start { name = "head" } ->
             report l (`Bad_document "duplicate head element") !throw
               after_head_mode
-        | l, End { name }
+        | l, `End { name }
           when not @@ list_mem_string name [ "body"; "html"; "br" ] ->
             report l (`Unmatched_end_tag name) !throw after_head_mode
         (* This case is not found in the specification. It is a deliberate
          deviation from conformance, so that fragments "<head>...</head>" don't
          get an implicit <body> element generated after the <head> element. *)
-        | l, EOF
+        | l, `EOF
           when Context.the_context context = Fragment (HTML, "html")
                || Context.the_context context = Fragment (HTML, "head") ->
             emit_end l
@@ -1572,37 +1574,37 @@ let parse ?depth_limit requested_context report tokens =
     dispatch tokens (fun v -> in_body_mode_rules "body" in_body_mode v)
   (* 8.2.5.4.7. *)
   and in_body_mode_rules context_name mode = function
-    | l, Char 0 -> report l (`Bad_token ("U+0000", "body", "null")) !throw mode
-    | l, String s ->
+    | l, `Char 0 -> report l (`Bad_token ("U+0000", "body", "null")) !throw mode
+    | l, `String s ->
         let s = remove_nulls s in
         reconstruct_active_formatting_elements (fun () ->
             add_string l s;
             if not @@ is_whitespace_only s then frameset_ok := false;
             mode ())
-    | l, Char ((0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) as c) ->
+    | l, `Char ((0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) as c) ->
         reconstruct_active_formatting_elements (fun () ->
             add_character l c;
             mode ())
-    | l, Char c ->
+    | l, `Char c ->
         frameset_ok := false;
         reconstruct_active_formatting_elements (fun () ->
             add_character l c;
             mode ())
-    | l, Comment s -> emit l (`Comment s) mode
-    | l, Doctype _ ->
+    | l, `Comment s -> emit l (`Comment s) mode
+    | l, `Doctype _ ->
         report l (`Bad_document "doctype should be first") !throw mode
-    | l, Start ({ name = "html" } as t) -> misnested_tag l t context_name mode
+    | l, `Start ({ name = "html" } as t) -> misnested_tag l t context_name mode
     | ( ( _,
-          Start
+          `Start
             {
               name =
                 ( "base" | "basefont" | "bgsound" | "link" | "meta" | "noframes"
                 | "script" | "style" | "template" | "title" );
             } )
-      | _, End { name = "template" } ) as v ->
+      | _, `End { name = "template" } ) as v ->
         in_head_mode_rules mode v
-    | l, Start ({ name = "body" } as t) -> misnested_tag l t context_name mode
-    | l, Start ({ name = "frameset" } as t) ->
+    | l, `Start ({ name = "body" } as t) -> misnested_tag l t context_name mode
+    | l, `Start ({ name = "frameset" } as t) ->
         misnested_tag l t context_name (fun () ->
             match !(Stack.elements open_elements) with
             | [ _ ] -> mode ()
@@ -1625,7 +1627,7 @@ let parse ?depth_limit requested_context report tokens =
                       | _ -> false)
                     l
                     (fun () -> push_and_emit l t in_frameset_mode))
-    | (l, EOF) as v ->
+    | (l, `EOF) as v ->
         report_if_stack_has_other_than
           [
             "dd";
@@ -1644,7 +1646,7 @@ let parse ?depth_limit requested_context report tokens =
             match !template_insertion_modes with
             | [] -> emit_end l
             | _ -> in_template_mode_rules mode v)
-    | l, End { name = "body" } ->
+    | l, `End { name = "body" } ->
         if not @@ Stack.in_scope open_elements "body" then
           report l (`Unmatched_end_tag "body") !throw mode
         else
@@ -1669,7 +1671,7 @@ let parse ?depth_limit requested_context report tokens =
               "body";
               "html";
             ] (fun () -> after_body_mode ())
-    | (l, End { name = "html" }) as v ->
+    | (l, `End { name = "html" }) as v ->
         if not @@ Stack.in_scope open_elements "body" then
           report l (`Unmatched_end_tag "html") !throw mode
         else
@@ -1697,7 +1699,7 @@ let parse ?depth_limit requested_context report tokens =
               push tokens v;
               after_body_mode ())
     | ( l,
-        Start
+        `Start
           ({
              name =
                ( "address" | "article" | "aside" | "blockquote" | "center"
@@ -1706,7 +1708,7 @@ let parse ?depth_limit requested_context report tokens =
                | "main" | "nav" | "ol" | "p" | "section" | "summary" | "ul" );
            } as t) ) ->
         close_current_p_element l (fun () -> push_and_emit l t mode)
-    | l, Start ({ name = "h1" | "h2" | "h3" | "h4" | "h5" | "h6" } as t) ->
+    | l, `Start ({ name = "h1" | "h2" | "h3" | "h4" | "h5" | "h6" } as t) ->
         close_current_p_element l (fun () ->
             (fun mode' ->
               match Stack.current_element open_elements with
@@ -1717,23 +1719,23 @@ let parse ?depth_limit requested_context report tokens =
                   } ->
                   misnested_tag l t name' (fun () -> pop l mode')
               | _ -> mode' ()) (fun () -> push_and_emit l t mode))
-    | l, Start ({ name = "pre" | "listing" } as t) ->
+    | l, `Start ({ name = "pre" | "listing" } as t) ->
         frameset_ok := false;
         close_current_p_element l (fun () ->
             push_and_emit l t (fun () ->
                 (* https://html.spec.whatwg.org/multipage/grouping-content.html#the-pre-element *)
                 (* In the HTML syntax, a leading newline character immediately following the pre element start tag is stripped. *)
                 match next_token tokens with
-                | _, Char 0x000A -> mode ()
-                | loc, String s when String.starts_with ~prefix:"\n" s ->
+                | _, `Char 0x000A -> mode ()
+                | loc, `String s when String.starts_with ~prefix:"\n" s ->
                     push tokens
-                      (loc, String (String.sub s 1 (String.length s - 1)));
+                      (loc, `String (String.sub s 1 (String.length s - 1)));
                     mode ()
                 | v ->
                     push tokens v;
                     mode ()
                 | exception exn -> !throw exn))
-    | l, Start ({ name = "form" } as t) ->
+    | l, `Start ({ name = "form" } as t) ->
         if
           !form_element_pointer <> None
           && (not @@ Stack.has open_elements "template")
@@ -1743,19 +1745,19 @@ let parse ?depth_limit requested_context report tokens =
               let in_template = Stack.has open_elements "template" in
               push_and_emit ~set_form_element_pointer:(not in_template) l t mode)
         end
-    | l, Start ({ name = "li" } as t) ->
+    | l, `Start ({ name = "li" } as t) ->
         frameset_ok := false;
         close_preceding_tag [ "li" ] l (fun () ->
             close_current_p_element l (fun () -> push_and_emit l t mode))
-    | l, Start ({ name = "dd" | "dt" } as t) ->
+    | l, `Start ({ name = "dd" | "dt" } as t) ->
         frameset_ok := false;
         close_preceding_tag [ "dd"; "dt" ] l (fun () ->
             close_current_p_element l (fun () -> push_and_emit l t mode))
-    | l, Start ({ name = "plaintext" } as t) ->
+    | l, `Start ({ name = "plaintext" } as t) ->
         close_current_p_element l (fun () ->
-            set_tokenizer_state PLAINTEXT;
+            set_tokenizer_state Html_tokenizer.PLAINTEXT;
             push_and_emit l t mode)
-    | l, Start ({ name = "button" } as t) ->
+    | l, `Start ({ name = "button" } as t) ->
         (fun mode' ->
           if Stack.in_scope open_elements "button" then
             misnested_tag l t "button" (fun () ->
@@ -1765,7 +1767,7 @@ let parse ?depth_limit requested_context report tokens =
             reconstruct_active_formatting_elements (fun () ->
                 push_and_emit l t mode))
     | ( l,
-        End
+        `End
           {
             name =
               ( "address" | "article" | "aside" | "blockquote" | "button"
@@ -1777,7 +1779,7 @@ let parse ?depth_limit requested_context report tokens =
         if not @@ Stack.in_scope open_elements name then
           report l (`Unmatched_end_tag name) !throw mode
         else close_element_with_implied name l mode
-    | l, End { name = "form" } ->
+    | l, `End { name = "form" } ->
         if not @@ Stack.has open_elements "template" then begin
           let form_element = !form_element_pointer in
           form_element_pointer := None;
@@ -1798,21 +1800,21 @@ let parse ?depth_limit requested_context report tokens =
         else if not @@ Stack.in_scope open_elements "form" then
           report l (`Unmatched_end_tag "form") !throw mode
         else close_element_with_implied "form" l mode
-    | l, End { name = "p" } ->
+    | l, `End { name = "p" } ->
         (fun mode' ->
           if not @@ Stack.in_button_scope open_elements "p" then
             report l (`Unmatched_end_tag "p") !throw (fun () ->
                 push_implicit l "p" mode')
           else mode' ()) (fun () -> close_element_with_implied "p" l mode)
-    | l, End { name = "li" } ->
+    | l, `End { name = "li" } ->
         if not @@ Stack.in_list_item_scope open_elements "li" then
           report l (`Unmatched_end_tag "li") !throw mode
         else close_element_with_implied "li" l mode
-    | l, End { name = ("dd" | "dt") as name } ->
+    | l, `End { name = ("dd" | "dt") as name } ->
         if not @@ Stack.in_scope open_elements name then
           report l (`Unmatched_end_tag name) !throw mode
         else close_element_with_implied name l mode
-    | l, End { name = ("h1" | "h2" | "h3" | "h4" | "h5" | "h6") as name } ->
+    | l, `End { name = ("h1" | "h2" | "h3" | "h4" | "h5" | "h6") as name } ->
         if
           not
           @@ Stack.one_in_scope open_elements
@@ -1831,7 +1833,7 @@ let parse ?depth_limit requested_context report tokens =
               pop_until_and_raise_errors
                 [ "h1"; "h2"; "h3"; "h4"; "h5"; "h6" ]
                 l mode)
-    | l, Start ({ name = "a" } as t) ->
+    | l, `Start ({ name = "a" } as t) ->
         (fun k ->
           match Active.has_before_marker active_formatting_elements "a" with
           | None -> k ()
@@ -1845,7 +1847,7 @@ let parse ?depth_limit requested_context report tokens =
             reconstruct_active_formatting_elements (fun () ->
                 push_and_emit ~formatting:true l t mode))
     | ( l,
-        Start
+        `Start
           ({
              name =
                ( "b" | "big" | "code" | "em" | "font" | "i" | "s" | "small"
@@ -1854,7 +1856,7 @@ let parse ?depth_limit requested_context report tokens =
         Subtree.enable subtree_buffer;
         reconstruct_active_formatting_elements (fun () ->
             push_and_emit ~formatting:true l t mode)
-    | l, Start ({ name = "nobr" } as t) ->
+    | l, `Start ({ name = "nobr" } as t) ->
         Subtree.enable subtree_buffer;
         reconstruct_active_formatting_elements (fun () ->
             (fun k ->
@@ -1865,96 +1867,96 @@ let parse ?depth_limit requested_context report tokens =
                         reconstruct_active_formatting_elements k))) (fun () ->
                 push_and_emit ~formatting:true l t mode))
     | ( l,
-        End
+        `End
           {
             name =
               ( "a" | "b" | "big" | "code" | "em" | "font" | "i" | "nobr" | "s"
               | "small" | "strike" | "strong" | "tt" | "u" ) as name;
           } ) ->
         adoption_agency_algorithm l name mode
-    | l, Start ({ name = "applet" | "marquee" | "object" } as t) ->
+    | l, `Start ({ name = "applet" | "marquee" | "object" } as t) ->
         frameset_ok := false;
         reconstruct_active_formatting_elements (fun () ->
             Active.add_marker active_formatting_elements;
             push_and_emit l t mode)
-    | l, End { name = ("applet" | "marquee" | "object") as name } ->
+    | l, `End { name = ("applet" | "marquee" | "object") as name } ->
         if not @@ Stack.in_scope open_elements name then
           report l (`Unmatched_end_tag name) !throw mode
         else begin
           Active.clear_until_marker active_formatting_elements;
           close_element_with_implied name l mode
         end
-    | l, Start ({ name = "table" } as t) ->
+    | l, `Start ({ name = "table" } as t) ->
         frameset_ok := false;
         close_current_p_element l (fun () -> push_and_emit l t in_table_mode)
-    | l, End { name = "br" } ->
+    | l, `End { name = "br" } ->
         report l (`Unmatched_end_tag "br") !throw (fun () ->
             in_body_mode_rules context_name mode
               ( l,
-                Start
+                `Start
                   {
                     Token_tag.name = "br";
                     attributes = [];
                     self_closing = false;
                   } ))
     | ( l,
-        Start
+        `Start
           ({ name = "area" | "br" | "embed" | "img" | "keygen" | "wbr" } as t) )
       ->
         frameset_ok := false;
         reconstruct_active_formatting_elements (fun () ->
             push_and_emit ~acknowledge:true l t (fun () -> pop l mode))
-    | l, Start ({ name = "input" } as t) ->
+    | l, `Start ({ name = "input" } as t) ->
         if Element.is_not_hidden t then frameset_ok := false;
         reconstruct_active_formatting_elements (fun () ->
             push_and_emit ~acknowledge:true l t (fun () -> pop l mode))
-    | l, Start ({ name = "param" | "source" | "track" } as t) ->
+    | l, `Start ({ name = "param" | "source" | "track" } as t) ->
         push_and_emit ~acknowledge:true l t (fun () -> pop l mode)
-    | l, Start ({ name = "hr" } as t) ->
+    | l, `Start ({ name = "hr" } as t) ->
         frameset_ok := false;
         close_current_p_element l (fun () ->
             push_and_emit ~acknowledge:true l t (fun () -> pop l mode))
-    | l, Start ({ name = "image" } as t) ->
+    | l, `Start ({ name = "image" } as t) ->
         report l
           (`Bad_token ("image", "tag", "should be 'img'"))
           !throw
           (fun () ->
-            push tokens (l, Start { t with name = "img" });
+            push tokens (l, `Start { t with name = "img" });
             mode ())
-    | l, Start ({ name = "textarea" } as t) ->
+    | l, `Start ({ name = "textarea" } as t) ->
         frameset_ok := false;
         push_and_emit l t (fun () ->
-            set_tokenizer_state RCDATA;
+            set_tokenizer_state Html_tokenizer.RCDATA;
             match next_token tokens with
-            | _, Char 0x000A -> text_mode mode
-            | loc, String s when String.starts_with ~prefix:"\n" s ->
-                push tokens (loc, String (String.sub s 1 (String.length s - 1)));
+            | _, `Char 0x000A -> text_mode mode
+            | loc, `String s when String.starts_with ~prefix:"\n" s ->
+                push tokens (loc, `String (String.sub s 1 (String.length s - 1)));
                 text_mode mode
             | v ->
                 push tokens v;
                 text_mode mode
             | exception exn -> !throw exn)
-    | l, Start { name = "xmp" } ->
+    | l, `Start { name = "xmp" } ->
         frameset_ok := false;
         close_current_p_element l (fun () ->
             reconstruct_active_formatting_elements (fun () ->
                 parse_rawtext mode))
-    | l, Start ({ name = "iframe" } as t) ->
+    | l, `Start ({ name = "iframe" } as t) ->
         frameset_ok := false;
         push_and_emit l t (fun () -> parse_rawtext mode)
-    | l, Start ({ name = "noembed" } as t) ->
+    | l, `Start ({ name = "noembed" } as t) ->
         push_and_emit l t (fun () -> parse_rawtext mode)
-    | l, Start ({ name = "select" } as t) ->
+    | l, `Start ({ name = "select" } as t) ->
         frameset_ok := false;
         select_in_body l t in_select_mode
-    | l, Start ({ name = "optgroup" | "option" } as t) ->
+    | l, `Start ({ name = "optgroup" | "option" } as t) ->
         (fun mode' ->
           if Stack.current_element_is open_elements [ "option" ] then
             pop l mode'
           else mode' ()) (fun () ->
             reconstruct_active_formatting_elements (fun () ->
                 push_and_emit l t mode))
-    | l, Start ({ name = "rb" | "rtc" } as t) ->
+    | l, `Start ({ name = "rb" | "rtc" } as t) ->
         (fun mode' ->
           let finish () =
             if Stack.current_element_is open_elements [ "ruby" ] then mode' ()
@@ -1962,7 +1964,7 @@ let parse ?depth_limit requested_context report tokens =
           in
           if Stack.in_scope open_elements "ruby" then pop_implied l finish
           else finish ()) (fun () -> push_and_emit l t mode)
-    | l, Start ({ name = "rp" | "rt" } as t) ->
+    | l, `Start ({ name = "rp" | "rt" } as t) ->
         (fun mode' ->
           let finish () =
             if Stack.current_element_is open_elements [ "ruby"; "rtc" ] then
@@ -1972,26 +1974,26 @@ let parse ?depth_limit requested_context report tokens =
           if Stack.in_scope open_elements "ruby" then
             pop_implied ~except:"rtc" l finish
           else finish ()) (fun () -> push_and_emit l t mode)
-    | l, Start ({ name = "math" } as t) ->
+    | l, `Start ({ name = "math" } as t) ->
         reconstruct_active_formatting_elements (fun () ->
             push_and_emit ~acknowledge:true ~namespace:MathML l t (fun () ->
                 if t.self_closing then pop l mode else mode ()))
-    | l, Start ({ name = "svg" } as t) ->
+    | l, `Start ({ name = "svg" } as t) ->
         reconstruct_active_formatting_elements (fun () ->
             push_and_emit ~acknowledge:true ~namespace:SVG l t (fun () ->
                 if t.self_closing then pop l mode else mode ()))
     | ( l,
-        Start
+        `Start
           ({
              name =
                ( "caption" | "col" | "colgroup" | "frame" | "head" | "tbody"
                | "td" | "tfoot" | "th" | "thead" | "tr" );
            } as t) ) ->
         misnested_tag l t context_name mode
-    | l, Start t ->
+    | l, `Start t ->
         reconstruct_active_formatting_elements (fun () ->
             push_and_emit l t mode)
-    | l, End { name } -> any_other_end_tag_in_body l name mode
+    | l, `End { name } -> any_other_end_tag_in_body l name mode
   (* Part of 8.2.5.4.7. *)
   and any_other_end_tag_in_body l name mode =
     let rec close = function
@@ -2029,26 +2031,26 @@ let parse ?depth_limit requested_context report tokens =
   (* 8.2.5.4.8. *)
   and text_mode original_mode =
     dispatch tokens begin function
-        | l, Char c ->
+        | l, `Char c ->
             add_character l c;
             text_mode original_mode
-        | l, String s ->
+        | l, `String s ->
             add_string l s;
             text_mode original_mode
-        | (l, EOF) as v ->
+        | (l, `EOF) as v ->
             report l (`Unexpected_eoi "content") !throw (fun () ->
                 push tokens v;
                 pop l original_mode)
-        | l, End _ -> pop l original_mode
+        | l, `End _ -> pop l original_mode
         | _ -> text_mode original_mode
       end
   (* 8.2.5.2. *)
   and parse_rcdata original_mode =
-    set_tokenizer_state RCDATA;
+    set_tokenizer_state Html_tokenizer.RCDATA;
     text_mode original_mode
   (* 8.2.5.2. *)
   and parse_rawtext original_mode =
-    set_tokenizer_state RAWTEXT;
+    set_tokenizer_state Html_tokenizer.RAWTEXT;
     text_mode original_mode
   and anything_else_in_table mode ((l, _) as v) =
     report l (`Bad_content "table") !throw (fun () ->
@@ -2057,81 +2059,81 @@ let parse ?depth_limit requested_context report tokens =
   and in_table_mode () =
     dispatch tokens (fun v -> in_table_mode_rules in_table_mode v)
   and in_table_mode_rules mode = function
-    | (_, Char _ | _, String _) as v
+    | (_, `Char _ | _, `String _) as v
       when Stack.current_element_is open_elements
              [ "table"; "tbody"; "tfoot"; "thead"; "tr" ] ->
         push tokens v;
         in_table_text_mode true [] mode
-    | l, Comment s -> emit l (`Comment s) mode
-    | l, Doctype _ ->
+    | l, `Comment s -> emit l (`Comment s) mode
+    | l, `Doctype _ ->
         report l (`Bad_document "doctype should be first") !throw mode
-    | l, Start ({ name = "caption" } as t) ->
+    | l, `Start ({ name = "caption" } as t) ->
         pop_to_table_context l (fun () ->
             Active.add_marker active_formatting_elements;
             push_and_emit l t in_caption_mode)
-    | l, Start ({ name = "colgroup" } as t) ->
+    | l, `Start ({ name = "colgroup" } as t) ->
         pop_to_table_context l (fun () ->
             push_and_emit l t in_column_group_mode)
-    | (l, Start { name = "col" }) as v ->
+    | (l, `Start { name = "col" }) as v ->
         pop_to_table_context l (fun () ->
             push tokens v;
             push_implicit l "colgroup" in_column_group_mode)
-    | l, Start ({ name = "tbody" | "tfoot" | "thead" } as t) ->
+    | l, `Start ({ name = "tbody" | "tfoot" | "thead" } as t) ->
         pop_to_table_context l (fun () -> push_and_emit l t in_table_body_mode)
-    | (l, Start { name = "td" | "th" | "tr" }) as v ->
+    | (l, `Start { name = "td" | "th" | "tr" }) as v ->
         pop_to_table_context l (fun () ->
             push tokens v;
             push_implicit l "tbody" in_table_body_mode)
-    | (l, Start ({ name = "table" } as t)) as v ->
+    | (l, `Start ({ name = "table" } as t)) as v ->
         misnested_tag l t "table" (fun () ->
             if not @@ Stack.has open_elements "table" then mode ()
             else begin
               push tokens v;
               close_element l "table" (fun () -> reset_mode () ())
             end)
-    | l, End { name = "table" } ->
+    | l, `End { name = "table" } ->
         if not @@ Stack.in_table_scope open_elements "table" then
           report l (`Unmatched_end_tag "table") !throw mode
         else close_element l "table" (fun () -> reset_mode () ())
     | ( l,
-        End
+        `End
           {
             name =
               ( "body" | "caption" | "col" | "colgroup" | "html" | "tbody"
               | "td" | "tfoot" | "th" | "thead" | "tr" ) as name;
           } ) ->
         report l (`Unmatched_end_tag name) !throw mode
-    | ( _, Start { name = "style" | "script" | "template" }
-      | _, End { name = "template" } ) as v ->
+    | ( _, `Start { name = "style" | "script" | "template" }
+      | _, `End { name = "template" } ) as v ->
         in_head_mode_rules mode v
-    | l, Start ({ name = "input" } as t) when Element.is_not_hidden t ->
+    | l, `Start ({ name = "input" } as t) when Element.is_not_hidden t ->
         misnested_tag l t "table" (fun () ->
             push_and_emit ~acknowledge:true l t (fun () -> pop l mode))
-    | l, Start ({ name = "form" } as t) ->
+    | l, `Start ({ name = "form" } as t) ->
         misnested_tag l t "table" (fun () ->
             push_and_emit l t (fun () -> pop l mode))
-    | (_, EOF) as v -> in_body_mode_rules "table" mode v
+    | (_, `EOF) as v -> in_body_mode_rules "table" mode v
     | v -> anything_else_in_table mode v
   (* 8.2.5.4.10. *)
   and in_table_text_mode only_space cs mode =
     dispatch tokens begin function
-        | l, Char 0 ->
+        | l, `Char 0 ->
             report l
               (`Bad_token ("U+0000", "table", "null"))
               !throw
               (fun () -> in_table_text_mode only_space cs mode)
-        | (_, Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020)) as v ->
+        | (_, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020)) as v ->
             in_table_text_mode only_space (v :: cs) mode
-        | (_, Char _) as v -> in_table_text_mode false (v :: cs) mode
-        | l, String s when String.contains s '\x00' ->
+        | (_, `Char _) as v -> in_table_text_mode false (v :: cs) mode
+        | l, `String s when String.contains s '\x00' ->
             let s = remove_nulls s in
-            let v = (l, String s) in
+            let v = (l, `String s) in
             if is_whitespace_only s then
               in_table_text_mode only_space (v :: cs) mode
             else in_table_text_mode false (v :: cs) mode
-        | (_, String s) as v when is_whitespace_only s ->
+        | (_, `String s) as v when is_whitespace_only s ->
             in_table_text_mode only_space (v :: cs) mode
-        | (_, String _) as v -> in_table_text_mode false (v :: cs) mode
+        | (_, `String _) as v -> in_table_text_mode false (v :: cs) mode
         | v ->
             push tokens v;
             if not only_space then
@@ -2144,8 +2146,8 @@ let parse ?depth_limit requested_context report tokens =
             else begin
               List.rev cs
               |> List.iter (function
-                | l, Char c -> add_character l c
-                | l, String s -> add_string l s
+                | l, `Char c -> add_character l c
+                | l, `String s -> add_string l s
                 | _ -> ());
               mode ()
             end
@@ -2153,7 +2155,7 @@ let parse ?depth_limit requested_context report tokens =
   (* 8.2.5.4.11. *)
   and in_caption_mode () =
     dispatch tokens begin function
-        | l, End { name = "caption" } ->
+        | l, `End { name = "caption" } ->
             if not @@ Stack.in_table_scope open_elements "caption" then
               report l (`Unmatched_end_tag "caption") !throw in_caption_mode
             else begin
@@ -2161,7 +2163,7 @@ let parse ?depth_limit requested_context report tokens =
               close_element_with_implied "caption" l in_table_mode
             end
         | ( l,
-            Start
+            `Start
               ({
                  name =
                    ( "caption" | "col" | "colgroup" | "tbody" | "td" | "tfoot"
@@ -2175,7 +2177,7 @@ let parse ?depth_limit requested_context report tokens =
                   push tokens v;
                   close_element l "caption" in_table_mode
                 end)
-        | (l, End { name = "table" }) as v ->
+        | (l, `End { name = "table" }) as v ->
             report l (`Unmatched_end_tag "table") !throw (fun () ->
                 if not @@ Stack.in_table_scope open_elements "caption" then
                   in_caption_mode ()
@@ -2185,46 +2187,46 @@ let parse ?depth_limit requested_context report tokens =
                   close_element l "caption" in_table_mode
                 end)
         | ( l,
-            End
+            `End
               {
                 name =
                   ( "body" | "col" | "colgroup" | "html" | "tbody" | "td"
                   | "tfoot" | "th" | "thead" | "tr" ) as name;
               } ) ->
             report l (`Unmatched_end_tag name) !throw in_caption_mode
-        | l, Start ({ name = "select" } as t) ->
+        | l, `Start ({ name = "select" } as t) ->
             select_in_body l t in_select_in_table_mode
         | v -> in_body_mode_rules "caption" in_caption_mode v
       end
   (* 8.2.5.4.12. *)
   and in_column_group_mode () =
     dispatch tokens begin function
-        | l, Char ((0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) as c) ->
+        | l, `Char ((0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) as c) ->
             add_character l c;
             in_column_group_mode ()
-        | l, String s when is_whitespace_only s ->
+        | l, `String s when is_whitespace_only s ->
             add_string l s;
             in_column_group_mode ()
-        | l, Comment s -> emit l (`Comment s) in_column_group_mode
-        | l, Doctype _ ->
+        | l, `Comment s -> emit l (`Comment s) in_column_group_mode
+        | l, `Doctype _ ->
             report l (`Bad_document "doctype should be first") !throw
               in_column_group_mode
-        | (_, Start { name = "html" }) as v ->
+        | (_, `Start { name = "html" }) as v ->
             in_body_mode_rules "colgroup" in_column_group_mode v
-        | l, Start ({ name = "col" } as t) ->
+        | l, `Start ({ name = "col" } as t) ->
             push_and_emit ~acknowledge:true l t (fun () ->
                 pop l in_column_group_mode)
-        | l, End { name = "colgroup" } ->
+        | l, `End { name = "colgroup" } ->
             if not @@ Stack.current_element_is open_elements [ "colgroup" ] then
               report l (`Unmatched_end_tag "colgroup") !throw
                 in_column_group_mode
             else pop l in_table_mode
-        | l, End { name = "col" } ->
+        | l, `End { name = "col" } ->
             report l (`Unmatched_end_tag "col") !throw in_column_group_mode
-        | (_, Start { name = "template" } | _, End { name = "template" }) as v
+        | (_, `Start { name = "template" } | _, `End { name = "template" }) as v
           ->
             in_head_mode_rules in_column_group_mode v
-        | (_, EOF) as v -> in_body_mode_rules "colgroup" in_column_group_mode v
+        | (_, `EOF) as v -> in_body_mode_rules "colgroup" in_column_group_mode v
         | (l, _) as v ->
             if not @@ Stack.current_element_is open_elements [ "colgroup" ] then
               report l (`Bad_content "colgroup") !throw in_table_mode
@@ -2236,20 +2238,20 @@ let parse ?depth_limit requested_context report tokens =
   (* 8.2.5.4.13. *)
   and in_table_body_mode () =
     dispatch tokens begin function
-        | l, Start ({ name = "tr" } as t) ->
+        | l, `Start ({ name = "tr" } as t) ->
             pop_to_table_body_context l (fun () ->
                 push_and_emit l t in_row_mode)
-        | (l, Start ({ name = "th" | "td" } as t)) as v ->
+        | (l, `Start ({ name = "th" | "td" } as t)) as v ->
             misnested_tag l t "table" (fun () ->
                 pop_to_table_body_context l (fun () ->
                     push tokens v;
                     push_implicit l "tr" in_row_mode))
-        | l, End { name = ("tbody" | "tfoot" | "thead") as name } ->
+        | l, `End { name = ("tbody" | "tfoot" | "thead") as name } ->
             if not @@ Stack.in_table_scope open_elements name then
               report l (`Unmatched_end_tag name) !throw in_table_body_mode
             else pop_to_table_body_context l (fun () -> pop l in_table_mode)
         | ( l,
-            Start
+            `Start
               ({
                  name =
                    "caption" | "col" | "colgroup" | "tbody" | "tfoot" | "thead";
@@ -2263,7 +2265,7 @@ let parse ?depth_limit requested_context report tokens =
               push tokens v;
               pop_to_table_body_context l (fun () -> pop l in_table_mode)
             end
-        | (l, End { name = "table" as name }) as v ->
+        | (l, `End { name = "table" as name }) as v ->
             if
               not
               @@ Stack.one_in_table_scope open_elements
@@ -2274,7 +2276,7 @@ let parse ?depth_limit requested_context report tokens =
               pop_to_table_body_context l (fun () -> pop l in_table_mode)
             end
         | ( l,
-            End
+            `End
               {
                 name =
                   ( "body" | "caption" | "col" | "colgroup" | "html" | "td"
@@ -2286,33 +2288,33 @@ let parse ?depth_limit requested_context report tokens =
   (* 8.2.5.4.14. *)
   and in_row_mode () =
     dispatch tokens begin function
-        | l, Start ({ name = "th" | "td" } as t) ->
+        | l, `Start ({ name = "th" | "td" } as t) ->
             Active.add_marker active_formatting_elements;
             pop_to_table_row_context l (fun () ->
                 push_and_emit l t in_cell_mode)
-        | l, End { name = "tr" } ->
+        | l, `End { name = "tr" } ->
             if not @@ Stack.in_table_scope open_elements "tr" then
               report l (`Unmatched_end_tag "tr") !throw in_row_mode
             else pop_to_table_row_context l (fun () -> pop l in_table_body_mode)
         | ( ( l,
-              Start
+              `Start
                 {
                   name =
                     ( "caption" | "col" | "colgroup" | "tbody" | "tfoot"
                     | "thead" | "tr" );
                 } )
-          | l, End { name = "table" } ) as v ->
+          | l, `End { name = "table" } ) as v ->
             if not @@ Stack.in_table_scope open_elements "tr" then
               match snd v with
-              | Start t -> misnested_tag l t "tr" in_row_mode
-              | End { name } ->
+              | `Start t -> misnested_tag l t "tr" in_row_mode
+              | `End { name } ->
                   report l (`Unmatched_end_tag name) !throw in_row_mode
               | _ -> assert false
             else
               pop_to_table_row_context l (fun () ->
                   push tokens v;
                   pop l in_table_body_mode)
-        | (l, End { name = ("tbody" | "tfoot" | "thead") as name }) as v ->
+        | (l, `End { name = ("tbody" | "tfoot" | "thead") as name }) as v ->
             if not @@ Stack.in_table_scope open_elements name then
               report l (`Unmatched_end_tag name) !throw in_row_mode
             else if not @@ Stack.in_table_scope open_elements "tr" then
@@ -2322,7 +2324,7 @@ let parse ?depth_limit requested_context report tokens =
                   push tokens v;
                   pop l in_table_body_mode)
         | ( l,
-            End
+            `End
               {
                 name =
                   ( "body" | "caption" | "col" | "colgroup" | "html" | "td"
@@ -2334,7 +2336,7 @@ let parse ?depth_limit requested_context report tokens =
   (* 8.2.5.4.15. *)
   and in_cell_mode () =
     dispatch tokens begin function
-        | l, End { name = ("td" | "th") as name } ->
+        | l, `End { name = ("td" | "th") as name } ->
             if not @@ Stack.in_table_scope open_elements name then
               report l (`Unmatched_end_tag name) !throw in_cell_mode
             else
@@ -2342,7 +2344,7 @@ let parse ?depth_limit requested_context report tokens =
                   Active.clear_until_marker active_formatting_elements;
                   in_row_mode ())
         | ( l,
-            Start
+            `Start
               ({
                  name =
                    ( "caption" | "col" | "colgroup" | "tbody" | "td" | "tfoot"
@@ -2356,14 +2358,14 @@ let parse ?depth_limit requested_context report tokens =
                   push tokens v;
                   in_row_mode ())
         | ( l,
-            End
+            `End
               {
                 name =
                   ("body" | "caption" | "col" | "colgroup" | "html") as name;
               } ) ->
             report l (`Unmatched_end_tag name) !throw in_cell_mode
         | ( l,
-            End
+            `End
               { name = ("table" | "tbody" | "tfoot" | "thead" | "tr") as name }
           ) as v ->
             if not @@ Stack.in_table_scope open_elements name then
@@ -2373,7 +2375,7 @@ let parse ?depth_limit requested_context report tokens =
                   Active.clear_until_marker active_formatting_elements;
                   push tokens v;
                   in_row_mode ())
-        | l, Start ({ name = "select" } as t) ->
+        | l, `Start ({ name = "select" } as t) ->
             select_in_body l t in_select_in_table_mode
         | v -> in_body_mode_rules "td" in_cell_mode v
       end
@@ -2381,24 +2383,24 @@ let parse ?depth_limit requested_context report tokens =
   and in_select_mode () =
     dispatch tokens (fun v -> in_select_mode_rules in_select_mode v)
   and in_select_mode_rules mode = function
-    | l, Char 0 ->
+    | l, `Char 0 ->
         report l (`Bad_token ("U+0000", "select", "null")) !throw mode
-    | l, Char c ->
+    | l, `Char c ->
         add_character l c;
         mode ()
-    | l, String s ->
+    | l, `String s ->
         add_string l (remove_nulls s);
         mode ()
-    | l, Comment s -> emit l (`Comment s) mode
-    | l, Doctype _ ->
+    | l, `Comment s -> emit l (`Comment s) mode
+    | l, `Doctype _ ->
         report l (`Bad_document "doctype should be first") !throw mode
-    | (_, Start { name = "html" }) as v -> in_body_mode_rules "select" mode v
-    | l, Start ({ name = "option" } as t) ->
+    | (_, `Start { name = "html" }) as v -> in_body_mode_rules "select" mode v
+    | l, `Start ({ name = "option" } as t) ->
         (fun mode' ->
           if Stack.current_element_is open_elements [ "option" ] then
             pop l mode'
           else mode' ()) (fun () -> push_and_emit l t mode)
-    | l, Start ({ name = "optgroup" } as t) ->
+    | l, `Start ({ name = "optgroup" } as t) ->
         (fun mode' ->
           if Stack.current_element_is open_elements [ "option" ] then
             pop l mode'
@@ -2408,7 +2410,7 @@ let parse ?depth_limit requested_context report tokens =
             pop l mode'
           else mode' ())
         @@ fun () -> push_and_emit l t mode
-    | l, End { name = "optgroup" } ->
+    | l, `End { name = "optgroup" } ->
         (fun mode' ->
           match !(Stack.elements open_elements) with
           | { element_name = HTML, "option" }
@@ -2419,33 +2421,33 @@ let parse ?depth_limit requested_context report tokens =
             if Stack.current_element_is open_elements [ "optgroup" ] then
               pop l mode
             else report l (`Unmatched_end_tag "optgroup") !throw mode)
-    | l, End { name = "option" } ->
+    | l, `End { name = "option" } ->
         if Stack.current_element_is open_elements [ "option" ] then pop l mode
         else report l (`Unmatched_end_tag "option") !throw mode
-    | l, End { name = "select" } ->
+    | l, `End { name = "select" } ->
         if not @@ Stack.in_select_scope open_elements "select" then
           report l (`Unmatched_end_tag "select") !throw mode
         else close_element l "select" (fun () -> reset_mode () ())
-    | l, Start ({ name = "select" } as t) ->
+    | l, `Start ({ name = "select" } as t) ->
         misnested_tag l t "select" (fun () ->
             close_element l "select" (fun () -> reset_mode () ()))
-    | (l, Start ({ name = "input" | "keygen" | "textarea" } as t)) as v ->
+    | (l, `Start ({ name = "input" | "keygen" | "textarea" } as t)) as v ->
         misnested_tag l t "select" (fun () ->
             if not @@ Stack.in_select_scope open_elements "select" then mode ()
             else begin
               push tokens v;
               close_element l "select" (fun () -> reset_mode () ())
             end)
-    | (_, (Start { name = "script" | "template" } | End { name = "template" }))
+    | (_, (`Start { name = "script" | "template" } | `End { name = "template" }))
       as v ->
         in_head_mode_rules mode v
-    | (_, EOF) as v -> in_body_mode_rules "select" mode v
+    | (_, `EOF) as v -> in_body_mode_rules "select" mode v
     | l, _ -> report l (`Bad_content "select") !throw mode
   (* 8.2.5.4.17. *)
   and in_select_in_table_mode () =
     dispatch tokens begin function
         | ( l,
-            Start
+            `Start
               ({
                  name =
                    ( "caption" | "table" | "tbody" | "tfoot" | "thead" | "tr"
@@ -2455,7 +2457,7 @@ let parse ?depth_limit requested_context report tokens =
                 push tokens v;
                 close_element l "select" (fun () -> reset_mode () ()))
         | ( l,
-            End
+            `End
               {
                 name =
                   ( "caption" | "table" | "tbody" | "tfoot" | "thead" | "tr"
@@ -2475,45 +2477,45 @@ let parse ?depth_limit requested_context report tokens =
     dispatch tokens (fun v -> in_table_mode_rules in_template_mode v)
   (* 8.2.5.4.18. *)
   and in_template_mode_rules mode = function
-    | (_, (Char _ | Comment _ | Doctype _ | String _)) as v ->
+    | (_, (`Char _ | `Comment _ | `Doctype _ | `String _)) as v ->
         in_body_mode_rules "template" mode v
     | ( ( _,
-          Start
+          `Start
             {
               name =
                 ( "base" | "basefont" | "bgsound" | "link" | "meta" | "noframes"
                 | "script" | "style" | "template" | "title" );
             } )
-      | _, End { name = "template" } ) as v ->
+      | _, `End { name = "template" } ) as v ->
         in_head_mode_rules mode v
-    | (_, Start { name = "caption" | "colgroup" | "tbody" | "tfoot" | "thead" })
+    | (_, `Start { name = "caption" | "colgroup" | "tbody" | "tfoot" | "thead" })
       as v ->
         Template.pop template_insertion_modes;
         Template.push template_insertion_modes in_table_mode;
         push tokens v;
         in_table_mode ()
-    | (_, Start { name = "col" }) as v ->
+    | (_, `Start { name = "col" }) as v ->
         Template.pop template_insertion_modes;
         Template.push template_insertion_modes in_column_group_mode;
         push tokens v;
         in_column_group_mode ()
-    | (_, Start { name = "tr" }) as v ->
+    | (_, `Start { name = "tr" }) as v ->
         Template.pop template_insertion_modes;
         Template.push template_insertion_modes in_table_body_mode;
         push tokens v;
         in_table_body_mode ()
-    | (_, Start { name = "td" | "th" }) as v ->
+    | (_, `Start { name = "td" | "th" }) as v ->
         Template.pop template_insertion_modes;
         Template.push template_insertion_modes in_row_mode;
         push tokens v;
         in_row_mode ()
-    | (_, Start _) as v ->
+    | (_, `Start _) as v ->
         Template.pop template_insertion_modes;
         Template.push template_insertion_modes in_body_mode;
         push tokens v;
         in_body_mode ()
-    | l, End { name } -> report l (`Unmatched_end_tag name) !throw mode
-    | (l, EOF) as v ->
+    | l, `End { name } -> report l (`Unmatched_end_tag name) !throw mode
+    | (l, `EOF) as v ->
         if not @@ Stack.has open_elements "template" then emit_end l
         else begin
           report l (`Unmatched_end_tag "template") !throw (fun () ->
@@ -2525,18 +2527,18 @@ let parse ?depth_limit requested_context report tokens =
   (* 8.2.5.4.19. *)
   and after_body_mode () =
     dispatch tokens begin function
-        | (_, Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020)) as v ->
+        | (_, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020)) as v ->
             in_body_mode_rules "html" after_body_mode v
-        | (_, String s) as v when is_whitespace_only s ->
+        | (_, `String s) as v when is_whitespace_only s ->
             in_body_mode_rules "html" after_body_mode v
-        | l, Comment s -> emit l (`Comment s) after_body_mode
-        | l, Doctype _ ->
+        | l, `Comment s -> emit l (`Comment s) after_body_mode
+        | l, `Doctype _ ->
             report l (`Bad_document "doctype should be first") !throw
               after_body_mode
-        | (_, Start { name = "html" }) as v ->
+        | (_, `Start { name = "html" }) as v ->
             in_body_mode_rules "html" after_body_mode v
-        | _, End { name = "html" } -> after_after_body_mode ()
-        | l, EOF -> emit_end l
+        | _, `End { name = "html" } -> after_after_body_mode ()
+        | l, `EOF -> emit_end l
         | (l, _) as v ->
             report l (`Bad_document "content after body") !throw (fun () ->
                 push tokens v;
@@ -2545,21 +2547,21 @@ let parse ?depth_limit requested_context report tokens =
   (* 8.2.5.4.20. *)
   and in_frameset_mode () =
     dispatch tokens begin function
-        | l, Char ((0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) as c) ->
+        | l, `Char ((0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) as c) ->
             add_character l c;
             in_frameset_mode ()
-        | l, String s when is_whitespace_only s ->
+        | l, `String s when is_whitespace_only s ->
             add_string l s;
             in_frameset_mode ()
-        | l, Comment s -> emit l (`Comment s) in_frameset_mode
-        | l, Doctype _ ->
+        | l, `Comment s -> emit l (`Comment s) in_frameset_mode
+        | l, `Doctype _ ->
             report l (`Bad_document "doctype should be first") !throw
               in_frameset_mode
-        | (_, Start { name = "html" }) as v ->
+        | (_, `Start { name = "html" }) as v ->
             in_body_mode_rules "frameset" in_frameset_mode v
-        | l, Start ({ name = "frameset" } as t) ->
+        | l, `Start ({ name = "frameset" } as t) ->
             push_and_emit l t in_frameset_mode
-        | l, End { name = "frameset" } ->
+        | l, `End { name = "frameset" } ->
             (fun mode' ->
               if Stack.current_element_is open_elements [ "html" ] then
                 report l (`Unmatched_end_tag "frameset") !throw mode'
@@ -2567,12 +2569,12 @@ let parse ?depth_limit requested_context report tokens =
                 if Stack.current_element_is open_elements [ "frameset" ] then
                   in_frameset_mode ()
                 else after_frameset_mode ())
-        | l, Start ({ name = "frame" } as t) ->
+        | l, `Start ({ name = "frame" } as t) ->
             push_and_emit ~acknowledge:true l t (fun () ->
                 pop l in_frameset_mode)
-        | (_, Start { name = "noframes" }) as v ->
+        | (_, `Start { name = "noframes" }) as v ->
             in_head_mode_rules in_frameset_mode v
-        | l, EOF ->
+        | l, `EOF ->
             (fun mode' ->
               if not @@ Stack.current_element_is open_elements [ "html" ] then
                 report l (`Unexpected_eoi "frameset") !throw mode'
@@ -2582,36 +2584,36 @@ let parse ?depth_limit requested_context report tokens =
   (* 8.2.5.4.21. *)
   and after_frameset_mode () =
     dispatch tokens begin function
-        | l, Char ((0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) as c) ->
+        | l, `Char ((0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) as c) ->
             add_character l c;
             after_frameset_mode ()
-        | l, String s when is_whitespace_only s ->
+        | l, `String s when is_whitespace_only s ->
             add_string l s;
             after_frameset_mode ()
-        | l, Comment s -> emit l (`Comment s) after_frameset_mode
-        | l, Doctype _ ->
+        | l, `Comment s -> emit l (`Comment s) after_frameset_mode
+        | l, `Doctype _ ->
             report l (`Bad_document "doctype should be first") !throw
               after_frameset_mode
-        | (_, Start { name = "html" }) as v ->
+        | (_, `Start { name = "html" }) as v ->
             in_body_mode_rules "html" after_frameset_mode v
-        | l, End { name = "html" } ->
+        | l, `End { name = "html" } ->
             close_element l "html" after_after_frameset_mode
-        | (_, Start { name = "noframes" }) as v ->
+        | (_, `Start { name = "noframes" }) as v ->
             in_head_mode_rules after_frameset_mode v
-        | l, EOF -> emit_end l
+        | l, `EOF -> emit_end l
         | l, _ -> report l (`Bad_content "html") !throw after_frameset_mode
       end
   (* 8.2.5.4.22. *)
   and after_after_body_mode () =
     dispatch tokens begin function
-        | l, Comment s -> emit l (`Comment s) after_after_body_mode
-        | ( _, Doctype _
-          | _, Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020)
-          | _, Start { name = "html" } ) as v ->
+        | l, `Comment s -> emit l (`Comment s) after_after_body_mode
+        | ( _, `Doctype _
+          | _, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020)
+          | _, `Start { name = "html" } ) as v ->
             in_body_mode_rules "html" after_after_body_mode v
-        | (_, String s) as v when is_whitespace_only s ->
+        | (_, `String s) as v when is_whitespace_only s ->
             in_body_mode_rules "html" after_after_body_mode v
-        | l, EOF -> emit_end l
+        | l, `EOF -> emit_end l
         | (l, _) as v ->
             push tokens v;
             report l (`Bad_content "html") !throw in_body_mode
@@ -2619,15 +2621,15 @@ let parse ?depth_limit requested_context report tokens =
   (* 8.2.5.4.23. *)
   and after_after_frameset_mode () =
     dispatch tokens begin function
-        | l, Comment s -> emit l (`Comment s) after_after_frameset_mode
-        | ( _, Doctype _
-          | _, Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020)
-          | _, Start { name = "html" } ) as v ->
+        | l, `Comment s -> emit l (`Comment s) after_after_frameset_mode
+        | ( _, `Doctype _
+          | _, `Char (0x0009 | 0x000A | 0x000C | 0x000D | 0x0020)
+          | _, `Start { name = "html" } ) as v ->
             in_body_mode_rules "html" after_after_frameset_mode v
-        | (_, String s) as v when is_whitespace_only s ->
+        | (_, `String s) as v when is_whitespace_only s ->
             in_body_mode_rules "html" after_after_frameset_mode v
-        | l, EOF -> emit_end l
-        | (_, Start { name = "noframes" }) as v ->
+        | l, `EOF -> emit_end l
+        | (_, `Start { name = "noframes" }) as v ->
             in_head_mode_rules after_after_frameset_mode v
         | l, _ ->
             report l (`Bad_content "html") !throw after_after_frameset_mode
@@ -2649,29 +2651,29 @@ let parse ?depth_limit requested_context report tokens =
       | _ -> false)
   and foreign_content mode force_html v =
     match v with
-    | l, Char 0 ->
+    | l, `Char 0 ->
         report l
           (`Bad_token ("U+0000", "foreign content", "null"))
           !throw
           (fun () ->
             add_character l u_rep;
             mode ())
-    | l, String s ->
+    | l, `String s ->
         add_string l (replace_nulls s);
         if not @@ is_whitespace_only (remove_nulls s) then frameset_ok := false;
         mode ()
-    | l, Char ((0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) as c) ->
+    | l, `Char ((0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) as c) ->
         add_character l c;
         mode ()
-    | l, Char c ->
+    | l, `Char c ->
         frameset_ok := false;
         add_character l c;
         mode ()
-    | l, Comment s -> emit l (`Comment s) mode
-    | l, Doctype _ ->
+    | l, `Comment s -> emit l (`Comment s) mode
+    | l, `Doctype _ ->
         report l (`Bad_document "doctype should be first") !throw mode
     | ( l,
-        Start
+        `Start
           ({
              name =
                ( "b" | "big" | "blockquote" | "body" | "br" | "center" | "code"
@@ -2694,13 +2696,13 @@ let parse ?depth_limit requested_context report tokens =
                       | { element_name } ->
                           Foreign.is_mathml_text_integration_point element_name)
                     l mode))
-    | l, Start t -> foreign_start_tag mode l t
-    | l, End { name = "script" }
+    | l, `Start t -> foreign_start_tag mode l t
+    | l, `End { name = "script" }
       when match Stack.current_element open_elements with
            | Some { element_name = SVG, "script" } -> true
            | _ -> false ->
         pop l mode
-    | l, End { name } ->
+    | l, `End { name } ->
         (fun mode' ->
           match Stack.current_element open_elements with
           | Some { element_name = _, name' }
@@ -2717,7 +2719,7 @@ let parse ?depth_limit requested_context report tokens =
               | _ :: rest -> scan rest
             in
             scan !(Stack.elements open_elements))
-    | _, EOF -> force_html ()
+    | _, `EOF -> force_html ()
   in
 
   construct constructor
