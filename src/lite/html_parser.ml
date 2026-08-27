@@ -2129,7 +2129,6 @@ let parse ?depth_limit requested_context report tokens =
               List.rev cs
               |> List.iter (function
                 | l, `Char c -> add_character l c
-                | l, `String s -> add_string l s
                 | _ -> ());
               mode ()
             end

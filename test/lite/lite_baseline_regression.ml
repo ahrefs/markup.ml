@@ -180,6 +180,23 @@ let () =
                       lite_tokens `Document [ ((1, 1), `String "x") ]
                     in
                     assert_equal 4 (List.length signals) );
+                  ( "string whitespace in table" >:: fun _ ->
+                    let tokens =
+                      [
+                        ((1, 1), `Start (token_tag "table"));
+                        ((1, 2), `String "\t");
+                        ((1, 3), `End (token_tag "table"));
+                        ((1, 4), `EOF);
+                      ]
+                    in
+                    let signals = lite_tokens `Document tokens in
+                    assert_bool "explicit String table whitespace was retained"
+                      (not
+                         (List.exists
+                            (function
+                              | `Text strings -> String.concat "" strings = "\t"
+                              | _ -> false)
+                            signals)) );
                   ( "report location" >:: fun _ ->
                     let reports = ref [] in
                     let tokens =
