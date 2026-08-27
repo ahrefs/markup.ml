@@ -71,14 +71,16 @@ let create html =
 
 let location () = { line = 1; column = -1 }
 
-let next source state (out : location_out) =
+let next source state ~drop_candidate (out : location_out) =
   match source.pushed with
   | { token; line; column } :: rest ->
       source.pushed <- rest;
       out.line <- line;
       out.column <- column;
       token
-  | [] -> Ragel_html_tokenizer.next source.scanner state (source.foreign ()) out
+  | [] ->
+      Ragel_html_tokenizer.next source.scanner state (source.foreign ())
+        ~drop_candidate out
 
 let set_foreign source foreign = source.foreign <- foreign
 

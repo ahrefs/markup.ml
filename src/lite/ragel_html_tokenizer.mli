@@ -7,4 +7,9 @@ type t
 val create : string -> t
 
 val next :
-  t -> Html_tokenizer.state -> bool -> location_out -> Html_tokenizer.token
+  t ->
+  Html_tokenizer.state ->
+  bool ->
+  drop_candidate:bool ->
+  location_out ->
+  Html_tokenizer.token

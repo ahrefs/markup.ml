@@ -686,6 +686,8 @@ module Subtree : sig
 
   val adoption_agency_algorithm :
     t -> Active.t -> location -> string -> bool * (location * Error.t) list
+
+  val buffering : t -> bool
 end = struct
   type t = {
     open_elements : Stack.t;
@@ -739,6 +741,8 @@ end = struct
           element.buffering <- true;
           subtree_buffer.position <- element;
           subtree_buffer.enabled <- true
+
+  let buffering subtree_buffer = subtree_buffer.enabled
 
   let disable subtree_buffer =
     let _, depth_limit = subtree_buffer.open_elements in
@@ -985,11 +989,14 @@ end
 let parse ?depth_limit requested_context report tokens =
   let context = Context.uninitialized () in
   let tokenizer_state = ref Data in
+  let tokenizer_drop_candidate = ref false in
   let token_location = Token_source.location () in
   let next_token tokens =
     let state = !tokenizer_state in
     if state <> Data then tokenizer_state := Data;
-    let token = Token_source.next tokens state token_location in
+    let drop_candidate = !tokenizer_drop_candidate in
+    if drop_candidate then tokenizer_drop_candidate := false;
+    let token = Token_source.next tokens state ~drop_candidate token_location in
     ((token_location.line, token_location.column), token)
   in
   let push = Token_source.push in
@@ -1470,6 +1477,7 @@ let parse ?depth_limit requested_context report tokens =
     | l, Start ({ name = "script" } as t) ->
         push_and_emit l t (fun () ->
             set_tokenizer_state Script_data;
+            set_drop_candidate true;
             text_mode mode)
     | l, End { name = "head" } -> pop l after_head_mode
     | l, Start ({ name = "template" } as t) ->
@@ -1930,6 +1938,7 @@ let parse ?depth_limit requested_context report tokens =
         frameset_ok := false;
         push_and_emit l t (fun () ->
             set_tokenizer_state RCDATA;
+            set_drop_candidate true;
             match next_token tokens with
             | _, Char 0x000A -> text_mode mode
             | loc, String s when String.starts_with ~prefix:"\n" s ->
@@ -1943,7 +1952,7 @@ let parse ?depth_limit requested_context report tokens =
         frameset_ok := false;
         close_current_p_element l (fun () ->
             reconstruct_active_formatting_elements (fun () ->
-                parse_rawtext mode))
+                parse_rawtext ~emitted:false mode))
     | l, Start ({ name = "iframe" } as t) ->
         frameset_ok := false;
         push_and_emit l t (fun () -> parse_rawtext mode)
@@ -2048,13 +2057,24 @@ let parse ?depth_limit requested_context report tokens =
         | _ -> text_mode original_mode
       end
   (* 8.2.5.2. *)
-  and parse_rcdata original_mode =
+  and parse_rcdata ?(emitted = true) original_mode =
     set_tokenizer_state RCDATA;
+    set_drop_candidate emitted;
     text_mode original_mode
   (* 8.2.5.2. *)
-  and parse_rawtext original_mode =
+  and parse_rawtext ?(emitted = true) original_mode =
     set_tokenizer_state RAWTEXT;
+    set_drop_candidate emitted;
     text_mode original_mode
+  (* Baseline resets the tokenizer state per character while its stale
+     [current_mode] is the closure entering a text state and characters
+     dispatch to foreign content, discarding a pending end-tag candidate
+     after its '<'. That configuration is decided here: the closure is
+     stale-reachable only when the start tag's emission updated
+     [current_mode]. *)
+  and set_drop_candidate emitted =
+    tokenizer_drop_candidate :=
+      emitted && not (Subtree.buffering subtree_buffer)
   and anything_else_in_table mode ((l, _) as v) =
     report l (`Bad_content "table") !throw (fun () ->
         in_body_mode_rules "table" mode v)

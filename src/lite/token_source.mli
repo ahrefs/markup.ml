@@ -8,6 +8,13 @@ type t
 
 val create : string -> t
 val location : unit -> location_out
-val next : t -> Html_tokenizer.state -> location_out -> Html_tokenizer.token
+
+val next :
+  t ->
+  Html_tokenizer.state ->
+  drop_candidate:bool ->
+  location_out ->
+  Html_tokenizer.token
+
 val set_foreign : t -> (unit -> bool) -> unit
 val push : t -> location * Html_tokenizer.token -> unit

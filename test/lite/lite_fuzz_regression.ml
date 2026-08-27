@@ -84,6 +84,22 @@ let tree_builder_failures =
       "<table><td><b><table><td><svg></td><script></script><><tr/><tr><td><svg></td></tr>M<P></b>";
   ]
 
+let candidate_recovery_failures =
+  [
+    ("dropped xmp empty candidate", "<math><mo><Xmp></");
+    ("dropped xmp named candidate", "<math><mo><xmp></x");
+    ("dropped xmp mid-stream candidate", "<math><mo><xmp></b>c");
+  ]
+  |> List.map (fun (name, html) -> agrees name html)
+
+let candidate_recovery_guards =
+  [
+    ("emitted rawtext element in foreign", "<math><mo><style></x");
+    ("emitted rawtext element in html", "<div><style></x");
+    ("emitted rcdata element in foreign", "<math><mo><title></x");
+  ]
+  |> List.map (fun (name, html) -> agrees name html)
+
 let doctype_lookahead_failures =
   [
     ("keyword mismatch tail lowercased", "<!doctype a b>XYZw");
@@ -113,4 +129,6 @@ let () =
            "tree-builder invariants" >::: tree_builder_failures;
            "doctype keyword lookahead" >::: doctype_lookahead_failures;
            "doctype lookahead guards" >::: doctype_lookahead_guards;
+           "end-tag candidate recovery" >::: candidate_recovery_failures;
+           "end-tag candidate guards" >::: candidate_recovery_guards;
          ])

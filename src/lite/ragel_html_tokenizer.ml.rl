@@ -292,7 +292,7 @@ let run scanner foreign =
 (* The tree builder requested a non-Data state for the next scan; the last
    start tag emitted is the appropriate end tag. In fragment parsing no start
    tag has been seen, so no end tag ever matches. *)
-let scan_raw_state scanner state foreign =
+let scan_raw_state scanner state drop_candidate =
   let data = scanner.data in
   let start = !(scanner.p) in
   if start >= !(scanner.eof) then scanner.finished <- true
@@ -317,7 +317,7 @@ let scan_raw_state scanner state foreign =
           end
           else begin
             let body =
-              Raw_text.scan ~drop_end_tag_candidate:foreign data start name
+              Raw_text.scan ~drop_end_tag_candidate:drop_candidate data start name
             in
             emit scanner (String body.Raw_text.text);
             if body.Raw_text.had_end_tag then
@@ -333,7 +333,7 @@ let scan_raw_state scanner state foreign =
     if next_index >= !(scanner.eof) then scanner.finished <- true
   end
 
-let rec next scanner (state : Html_tokenizer.state) foreign
+let rec next scanner (state : Html_tokenizer.state) foreign ~drop_candidate
     (location : location_out) =
   if scanner.read < scanner.write then begin
     let index = scanner.read in
@@ -352,12 +352,12 @@ let rec next scanner (state : Html_tokenizer.state) foreign
   else if state <> Data then begin
     scanner.read <- 0;
     scanner.write <- 0;
-    scan_raw_state scanner state foreign;
-    next scanner Data foreign location
+    scan_raw_state scanner state (foreign && drop_candidate);
+    next scanner Data foreign ~drop_candidate location
   end
   else begin
     scanner.read <- 0;
     scanner.write <- 0;
     run scanner foreign;
-    next scanner state foreign location
+    next scanner state foreign ~drop_candidate location
   end
