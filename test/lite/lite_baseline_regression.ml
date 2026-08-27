@@ -13,6 +13,12 @@ let lite context html =
   collect Markup_lite.iter
     (Markup_lite.parse_html ~report:(fun _ _ -> ()) ~context html)
 
+let lite_tokens ?(report = fun _ _ -> ()) context tokens =
+  collect Markup_lite.iter (Markup_lite.parse_tokens ~report ~context tokens)
+
+let token_tag name =
+  Markup_lite.Token_tag.{ name; attributes = []; self_closing = false }
+
 let print_signals signals =
   signals
   |> List.map Markup_common.signal_to_string
@@ -131,6 +137,40 @@ let () =
                   agrees ~context:(`Fragment "svg") "td in svg" "<td>x";
                   agrees ~context:(`Fragment "svg") "div span in svg"
                     "<div><span></div>";
+                ];
+           "parse_tokens"
+           >::: [
+                  ( "document" >:: fun _ ->
+                    let tokens =
+                      [
+                        ((1, 1), `Start (token_tag "p"));
+                        ((1, 4), `String "x");
+                        ((1, 5), `End (token_tag "p"));
+                        ((1, 9), `EOF);
+                      ]
+                    in
+                    assert_equal ~printer:print_signals
+                      (lite `Document "<p>x</p>")
+                      (lite_tokens `Document tokens) );
+                  ( "fragment" >:: fun _ ->
+                    let tokens = [ ((1, 1), `String "<b>"); ((1, 4), `EOF) ] in
+                    assert_equal ~printer:print_signals
+                      (lite (`Fragment "textarea") "&lt;b>")
+                      (lite_tokens (`Fragment "textarea") tokens) );
+                  ( "report location" >:: fun _ ->
+                    let reports = ref [] in
+                    let tokens =
+                      [ ((7, 11), `End (token_tag "p")); ((7, 15), `EOF) ]
+                    in
+                    ignore
+                      (lite_tokens
+                         ~report:(fun location error ->
+                           reports := (location, error) :: !reports)
+                         `Document tokens);
+                    assert_bool "token location was not reported"
+                      (List.exists
+                         (fun (location, _) -> location = (7, 11))
+                         !reports) );
                 ];
            "known divergence: foreign breakout reentry"
            >::: [
