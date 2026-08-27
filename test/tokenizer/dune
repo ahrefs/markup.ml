@@ -9,3 +9,8 @@
  (modules tokenizer_diff_test)
  (libraries ounit2 tokenizer_diff)
  (package markup))
+
+(executable
+ (name tokenizer_diff_corpus)
+ (modules tokenizer_diff_corpus)
+ (libraries tokenizer_diff))
