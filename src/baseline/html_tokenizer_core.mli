@@ -17,6 +17,4 @@ type state = [ `Data | `RCDATA | `RAWTEXT | `Script_data | `PLAINTEXT ]
 val tokenize :
   Error.parse_handler ->
   (location * int) Kstream.t * (unit -> location) ->
-    (location * token) Kstream.t *
-    (state -> unit) *
-    ((unit -> bool) -> unit)
+  (location * token) Kstream.t * (state -> unit) * ((unit -> bool) -> unit)

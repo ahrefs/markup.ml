@@ -1,5 +1,4 @@
 open Common
-
 module Engine = Html_tokenizer_engine
 
 type state = Engine.state

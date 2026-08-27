@@ -1,11 +1,8 @@
 open Common
-open Kstream
-
 module Core = Html_tokenizer_core
 
 type state = Core.state
 type token = Core.token
-
 type input = Scalar of location * int | End
 
 type action =
@@ -15,12 +12,7 @@ type action =
   | Finished
   | Failed of exn
 
-type input_waiter = {
-  throw : exn -> unit;
-  ended : unit -> unit;
-  emit : location * int -> unit;
-}
-
+type input_waiter = { ended : unit -> unit; emit : location * int -> unit }
 type report_waiter = { throw : exn -> unit; resume : unit -> unit }
 
 type t = {
@@ -40,9 +32,9 @@ let create get_location =
     | None -> failwith "tokenizer engine used during initialization"
   in
   let input =
-    make (fun throw ended emit ->
+    Kstream.make (fun _throw ended emit ->
         let engine = get () in
-        engine.input_waiter <- Some { throw; ended; emit };
+        engine.input_waiter <- Some { ended; emit };
         engine.action <- Some Await_input)
   in
   let report location error throw resume =
@@ -68,7 +60,8 @@ let create get_location =
 
 let rec drive engine =
   match engine.action with
-  | Some (Emit _ as action) | Some (Finished as action)
+  | Some (Emit _ as action)
+  | Some (Finished as action)
   | Some (Failed _ as action) ->
       engine.action <- None;
       action

@@ -2,7 +2,6 @@ open Common
 
 type state = Html_tokenizer_core.state
 type token = Html_tokenizer_core.token
-
 type input = Scalar of location * int | End
 
 type action =
