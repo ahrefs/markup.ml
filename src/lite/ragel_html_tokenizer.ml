@@ -44,8 +44,8 @@ let attributes attrs =
   in
   dedupe [] (List.rev attrs)
 
-let make_tag name attributes =
-  { Token_tag.name; attributes; self_closing = false }
+let make_tag ?(self_closing = false) name attributes =
+  { Token_tag.name; attributes; self_closing }
 
 let buffer_capacity = 128
 let maximum_transition_output = 3
@@ -4701,11 +4701,31 @@ let run scanner =
               end;
               ()
           | 16 ->
-              begin
-                let start = Start (make_tag !tag (attributes !attrs)) in
-                if !tag = "a" || !tag = "br" then emit scanner start
-                else emit_many scanner [ start; End (make_tag !tag []) ];
-                pause ()
+              begin match !tag with
+              | "script" ->
+                  p.contents <- p.contents - 1;
+                  begin
+                    cs.contents <- 21;
+                    if true then raise_notrace Goto_again_htmlstream
+                  end
+              | "style" ->
+                  p.contents <- p.contents - 1;
+                  begin
+                    cs.contents <- 32;
+                    if true then raise_notrace Goto_again_htmlstream
+                  end
+              | "title" ->
+                  p.contents <- p.contents - 1;
+                  begin
+                    cs.contents <- 42;
+                    if true then raise_notrace Goto_again_htmlstream
+                  end
+              | "" -> ()
+              | name ->
+                  emit scanner
+                    (Start
+                       (make_tag ~self_closing:true name (attributes !attrs)));
+                  pause ()
               end;
               ()
           | 34 ->
@@ -4875,11 +4895,31 @@ let run scanner =
               end;
               ()
           | 17 ->
-              begin
-                let start = Start (make_tag !tag (attributes !attrs)) in
-                if !tag = "a" || !tag = "br" then emit scanner start
-                else emit_many scanner [ start; End (make_tag !tag []) ];
-                pause ()
+              begin match !tag with
+              | "script" ->
+                  p.contents <- p.contents - 1;
+                  begin
+                    cs.contents <- 21;
+                    if true then raise_notrace Goto_again_htmlstream
+                  end
+              | "style" ->
+                  p.contents <- p.contents - 1;
+                  begin
+                    cs.contents <- 32;
+                    if true then raise_notrace Goto_again_htmlstream
+                  end
+              | "title" ->
+                  p.contents <- p.contents - 1;
+                  begin
+                    cs.contents <- 42;
+                    if true then raise_notrace Goto_again_htmlstream
+                  end
+              | "" -> ()
+              | name ->
+                  emit scanner
+                    (Start
+                       (make_tag ~self_closing:true name (attributes !attrs)));
+                  pause ()
               end;
               begin
                 mark := !p
@@ -5005,11 +5045,31 @@ let run scanner =
               end;
               ()
           | 18 ->
-              begin
-                let start = Start (make_tag !tag (attributes !attrs)) in
-                if !tag = "a" || !tag = "br" then emit scanner start
-                else emit_many scanner [ start; End (make_tag !tag []) ];
-                pause ()
+              begin match !tag with
+              | "script" ->
+                  p.contents <- p.contents - 1;
+                  begin
+                    cs.contents <- 21;
+                    if true then raise_notrace Goto_again_htmlstream
+                  end
+              | "style" ->
+                  p.contents <- p.contents - 1;
+                  begin
+                    cs.contents <- 32;
+                    if true then raise_notrace Goto_again_htmlstream
+                  end
+              | "title" ->
+                  p.contents <- p.contents - 1;
+                  begin
+                    cs.contents <- 42;
+                    if true then raise_notrace Goto_again_htmlstream
+                  end
+              | "" -> ()
+              | name ->
+                  emit scanner
+                    (Start
+                       (make_tag ~self_closing:true name (attributes !attrs)));
+                  pause ()
               end;
               begin
                 mark := !p
@@ -5063,11 +5123,31 @@ let run scanner =
                 end;
                 ()
             | 16 ->
-                begin
-                  let start = Start (make_tag !tag (attributes !attrs)) in
-                  if !tag = "a" || !tag = "br" then emit scanner start
-                  else emit_many scanner [ start; End (make_tag !tag []) ];
-                  pause ()
+                begin match !tag with
+                | "script" ->
+                    p.contents <- p.contents - 1;
+                    begin
+                      cs.contents <- 21;
+                      if true then raise_notrace Goto_again_htmlstream
+                    end
+                | "style" ->
+                    p.contents <- p.contents - 1;
+                    begin
+                      cs.contents <- 32;
+                      if true then raise_notrace Goto_again_htmlstream
+                    end
+                | "title" ->
+                    p.contents <- p.contents - 1;
+                    begin
+                      cs.contents <- 42;
+                      if true then raise_notrace Goto_again_htmlstream
+                    end
+                | "" -> ()
+                | name ->
+                    emit scanner
+                      (Start
+                         (make_tag ~self_closing:true name (attributes !attrs)));
+                    pause ()
                 end;
                 ()
             | 5 ->

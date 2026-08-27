@@ -47,8 +47,8 @@ let attributes attrs =
   in
   dedupe [] (List.rev attrs)
 
-let make_tag name attributes =
-  {Token_tag.name; attributes; self_closing = false}
+let make_tag ?(self_closing = false) name attributes =
+  {Token_tag.name; attributes; self_closing}
 
 let buffer_capacity = 128
 let maximum_transition_output = 3
@@ -89,10 +89,15 @@ let emit_many scanner tokens =
      pause ();
  }
  action tag_done_2 {
-   let start = Start (make_tag !tag (attributes !attrs)) in
-   if !tag = "a" || !tag = "br" then emit scanner start
-   else emit_many scanner [start; End (make_tag !tag [])];
-   pause ();
+   match !tag with
+   | "script" -> fhold; fgoto in_script;
+   | "style" -> fhold; fgoto in_style;
+   | "title" -> fhold; fgoto in_title;
+   | "" -> ()
+   | name ->
+     emit scanner
+       (Start (make_tag ~self_closing:true name (attributes !attrs)));
+     pause ();
  }
  action garbage_tag_done {
    match !tag with
