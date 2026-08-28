@@ -12,6 +12,7 @@ type t = {
   scanner : Ragel_html_tokenizer.t;
   mutable pushed : pushed_token list;
   mutable foreign : unit -> bool;
+  native_text_runs : bool;
 }
 
 let valid_utf_8 = String.is_valid_utf_8
@@ -67,6 +68,7 @@ let create html =
     scanner = Ragel_html_tokenizer.create html;
     pushed = [];
     foreign = (fun () -> false);
+    native_text_runs = true;
   }
 
 let of_tokens tokens =
@@ -77,7 +79,10 @@ let of_tokens tokens =
     scanner = Ragel_html_tokenizer.create "";
     pushed;
     foreign = (fun () -> false);
+    native_text_runs = false;
   }
+
+let native_text_runs source = source.native_text_runs
 
 let location () = { line = 1; column = -1 }
 

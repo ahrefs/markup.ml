@@ -2170,7 +2170,8 @@ let parse ?depth_limit requested_context report tokens =
               List.rev cs
               |> List.iter (function
                 | l, Char c -> add_character l c
-                | l, String s -> add_string l s
+                | l, String s when Token_source.native_text_runs tokens ->
+                    add_string l s
                 | _ -> ());
               mode ()
             end
