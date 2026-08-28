@@ -51,7 +51,9 @@ type outcome =
 let run parse collect_signals =
   let errors = ref [] in
   let report location error = errors := (location, error) :: !errors in
-  try Signals (collect_signals (parse report), List.rev !errors)
+  try
+    let signals = collect_signals (parse report) in
+    Signals (signals, List.rev !errors)
   with exn -> Raised (Printexc.to_string exn, List.rev !errors)
 
 let oracle context tokens =
