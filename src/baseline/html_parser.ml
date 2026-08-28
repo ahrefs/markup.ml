@@ -5,7 +5,9 @@ open Common
 open Token_tag
 open Kstream
 
-
+(* HTML space characters include U+000C, unlike XML whitespace. *)
+let is_whitespace_only s =
+  String.for_all (fun c -> c = '\x0c' || is_whitespace (int_of_char c)) s
 
 (* Namespaces for pattern matching. *)
 type ns = [ `HTML | `MathML | `SVG | `Other of string ]
