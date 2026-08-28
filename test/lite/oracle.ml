@@ -33,8 +33,8 @@ let adapt html : (Markup.location * Markup.Internals.token) list =
   let emit_text text =
     String.split_on_char '\x00' text
     |> List.iteri (fun i part ->
-           if i > 0 then emit (`Char 0);
-           if part <> "" then emit (`String part))
+        if i > 0 then emit (`Char 0);
+        if part <> "" then emit (`String part))
   in
   let step = function
     | HS.Text raw -> emit_text (decode raw)
