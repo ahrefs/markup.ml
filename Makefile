@@ -26,6 +26,7 @@ test :
 
 LITE_TEST_EXE := _build/default/test/lite/lite_diff_corpus.exe
 LITE_COUNT_TEST_EXE := _build/default/test/lite/lite_count_corpus.exe
+LITE_PARSER_TEST_EXE := _build/default/test/lite/lite_parser_diff_corpus.exe
 LITE_WRITER_TEST_EXE := _build/default/test/lite/lite_writer_diff_corpus.exe
 LITE_TEST_CORPUS ?= big_tests
 
@@ -33,9 +34,11 @@ LITE_TEST_CORPUS ?= big_tests
 test-lite :
 	dune build --profile release test/lite/lite_diff_corpus.exe \
 	  test/lite/lite_count_corpus.exe \
+	  test/lite/lite_parser_diff_corpus.exe \
 	  test/lite/lite_writer_diff_corpus.exe
 	$(LITE_TEST_EXE) $(LITE_TEST_CORPUS)
 	$(LITE_COUNT_TEST_EXE) $(LITE_TEST_CORPUS)
+	$(LITE_PARSER_TEST_EXE) $(LITE_TEST_CORPUS)
 	$(LITE_WRITER_TEST_EXE) $(LITE_TEST_CORPUS)
 
 LITE_AFL_EXE := _build-afl/default/test/fuzz/lite_diff_fuzz.exe
