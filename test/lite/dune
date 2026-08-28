@@ -15,6 +15,11 @@
  (libraries containers lite_test_oracle markup markup.lite unix))
 
 (executable
+ (name lite_parser_count_corpus)
+ (modules lite_parser_count_corpus)
+ (libraries containers lite_test_oracle markup markup.lite unix))
+
+(executable
  (name lite_count_corpus)
  (modules lite_count_corpus)
  (libraries containers lite_test_oracle markup markup.lite unix))
