@@ -1,5 +1,11 @@
 module HS = Devkit.HtmlStream
 
+(* Raw-text tokenizer states substitute U+FFFD for U+0000. *)
+let raw_text text =
+  if String.contains text '\x00' then
+    String.concat "\xEF\xBF\xBD" (String.split_on_char '\x00' text)
+  else text
+
 let decode raw =
   let inner = HS.Raw.project raw in
   try Devkit.Web.htmldecode inner with _ -> inner
@@ -13,23 +19,33 @@ let adapt html : (Markup.location * Markup.Internals.token) list =
   let tokens = ref [] in
   let emit token = tokens := ((HS.get_lnum ctx, -1), token) :: !tokens in
   let attributes attrs =
-    List.rev_map (fun (name, value) -> (name, decode value)) attrs
+    List.rev_map
+      (fun (name, value) -> (raw_text name, raw_text (decode value)))
+      attrs
   in
   let tag name attributes : Markup.Internals.Token_tag.t =
     { name; attributes; self_closing = false }
   in
+  (* Both tree builders assume tokenizers never leave U+0000 inside a
+     [`String]; split NULs out as [`Char 0] to preserve that invariant. *)
+  let emit_text text =
+    String.split_on_char '\x00' text
+    |> List.iteri (fun i part ->
+           if i > 0 then emit (`Char 0);
+           if part <> "" then emit (`String part))
+  in
   let step = function
-    | HS.Text raw -> emit (`String (decode raw))
+    | HS.Text raw -> emit_text (decode raw)
     | HS.Tag (name, attrs) -> emit (`Start (tag name (attributes attrs)))
     | HS.Close "br" -> ()
     | HS.Close name -> emit (`End (tag name []))
     | HS.Script (attrs, text) ->
         emit (`Start (tag "script" (attributes attrs)));
-        emit (`String text);
+        emit (`String (raw_text text));
         emit (`End (tag "script" []))
     | HS.Style (attrs, text) ->
         emit (`Start (tag "style" (attributes attrs)));
-        emit (`String text);
+        emit (`String (raw_text text));
         emit (`End (tag "style" []))
   in
   HS.parse ~ctx step html;

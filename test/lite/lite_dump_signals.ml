@@ -51,6 +51,9 @@ let read_all channel =
 let () =
   let input = read_all stdin in
   let context, input = context_of_input input in
-  Printf.printf "input: %S\n" input;
+  Printf.printf "input: %S\n%!" input;
+  Printf.eprintf "oracle...\n%!";
   print "oracle" (oracle context input);
-  print "lite" (lite context input)
+  Printf.eprintf "lite...\n%!";
+  print "lite" (lite context input);
+  Printf.eprintf "done\n%!"
