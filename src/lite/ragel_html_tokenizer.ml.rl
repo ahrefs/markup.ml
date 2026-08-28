@@ -171,6 +171,26 @@ let create data =
    write = 0;
    finished = false}
 
+let scan_data_text scanner =
+  let start = !(scanner.p) in
+  let limit = !(scanner.eof) in
+  if
+    !(scanner.cs) <> htmlstream_en_main
+    || !(scanner.mark) >= 0
+    || start >= limit
+    || scanner.data.[start] = '<'
+  then false
+  else begin
+    let stop = String_helpers.find scanner.data start '<' in
+    scanner.line <-
+      scanner.line + String_helpers.count scanner.data start stop '\n';
+    scanner.p := stop;
+    emit_text scanner
+      (decode (String.sub scanner.data start (stop - start)));
+    if stop >= limit then scanner.finished <- true;
+    true
+  end
+
 let run scanner foreign =
   let data = scanner.data in
   let cs = scanner.cs in
@@ -279,6 +299,7 @@ let run scanner foreign =
     cs := htmlstream_en_main;
     if !p >= !eof then scanner.finished <- true
   end
+  else if scan_data_text scanner then ()
   else begin
     %%write exec;
     if
