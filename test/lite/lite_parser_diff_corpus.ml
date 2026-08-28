@@ -46,12 +46,45 @@ let run parse collect_signals =
       (with_timeout (fun () -> collect_signals (parse report)), List.rev !errors)
   with exn -> Raised (Printexc.to_string exn, List.rev !errors)
 
+let first_difference to_string left right =
+  let rec loop index left right =
+    match (left, right) with
+    | [], [] -> "no difference"
+    | [], _ :: _ -> Printf.sprintf "baseline ended at %d" index
+    | _ :: _, [] -> Printf.sprintf "Lite ended at %d" index
+    | x :: xs, y :: ys ->
+        if x = y then loop (index + 1) xs ys
+        else
+          Printf.sprintf "item %d: baseline=%s Lite=%s" index (to_string x)
+            (to_string y)
+  in
+  loop 0 left right
+
+let error_to_string ((line, column), error) =
+  Printf.sprintf "(%d,%d) %s" line column (Markup_common.Error.to_string error)
+
 let compare name baseline lite =
-  if baseline <> lite then begin
-    Printf.eprintf "%s: strict parser mismatch\n" name;
+  if baseline = lite then true
+  else begin
+    begin match (baseline, lite) with
+    | Parsed (signals, errors), Parsed (lite_signals, lite_errors) ->
+        if signals <> lite_signals then
+          Printf.eprintf "%s: signal mismatch: %s\n" name
+            (first_difference Markup_common.signal_to_string signals
+               lite_signals)
+        else
+          Printf.eprintf "%s: error mismatch: %s\n" name
+            (first_difference error_to_string errors lite_errors)
+    | Raised (exn, _), Raised (lite_exn, _) ->
+        Printf.eprintf "%s: exception mismatch: baseline=%S Lite=%S\n" name exn
+          lite_exn
+    | Raised (exn, _), Parsed _ ->
+        Printf.eprintf "%s: baseline raised %S but Lite parsed\n" name exn
+    | Parsed _, Raised (exn, _) ->
+        Printf.eprintf "%s: Lite raised %S but baseline parsed\n" name exn
+    end;
     false
   end
-  else true
 
 let contexts =
   [
