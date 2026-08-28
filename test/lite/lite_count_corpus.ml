@@ -48,6 +48,7 @@ type stats = {
   mutable minor_words : float;
   mutable major_words : float;
   mutable promoted_words : float;
+  mutable allocated_words : float;
   mutable minor_collections : int;
   mutable major_collections : int;
   mutable compactions : int;
@@ -61,6 +62,7 @@ let empty_stats () =
     minor_words = 0.;
     major_words = 0.;
     promoted_words = 0.;
+    allocated_words = 0.;
     minor_collections = 0;
     major_collections = 0;
     compactions = 0;
@@ -68,12 +70,14 @@ let empty_stats () =
 
 let measure stats f =
   let gc_before = Gc.quick_stat () in
+  let allocated_before = Gc.allocated_bytes () in
   let cpu_before = Unix.times () in
   let wall_before = Unix.gettimeofday () in
   let result = f () in
   let wall_after = Unix.gettimeofday () in
   let cpu_after = Unix.times () in
   let gc_after = Gc.quick_stat () in
+  let allocated_after = Gc.allocated_bytes () in
   stats.wall_seconds <- stats.wall_seconds +. wall_after -. wall_before;
   stats.user_seconds <-
     stats.user_seconds +. cpu_after.tms_utime -. cpu_before.tms_utime;
@@ -85,6 +89,9 @@ let measure stats f =
     stats.major_words +. gc_after.major_words -. gc_before.major_words;
   stats.promoted_words <-
     stats.promoted_words +. gc_after.promoted_words -. gc_before.promoted_words;
+  stats.allocated_words <-
+    stats.allocated_words
+    +. ((allocated_after -. allocated_before) /. (float Sys.word_size /. 8.));
   stats.minor_collections <-
     stats.minor_collections + gc_after.minor_collections
     - gc_before.minor_collections;
@@ -137,13 +144,14 @@ let print_stats name bytes stats =
   let mib = float bytes /. 1048576. in
   Printf.printf
     "%s: wall_seconds=%.6f user_seconds=%.6f system_seconds=%.6f \
-     throughput_mib_s=%.2f minor_words=%.0f major_words=%.0f \
-     promoted_words=%.0f minor_collections=%d major_collections=%d \
-     compactions=%d\n"
+     throughput_mib_s=%.2f allocated_words=%.0f minor_words=%.0f \
+     major_words=%.0f promoted_words=%.0f minor_collections=%d \
+     major_collections=%d compactions=%d\n"
     name stats.wall_seconds stats.user_seconds stats.system_seconds
     (mib /. stats.wall_seconds)
-    stats.minor_words stats.major_words stats.promoted_words
-    stats.minor_collections stats.major_collections stats.compactions
+    stats.allocated_words stats.minor_words stats.major_words
+    stats.promoted_words stats.minor_collections stats.major_collections
+    stats.compactions
 
 let run_one name count_parser files =
   let stats = empty_stats () in

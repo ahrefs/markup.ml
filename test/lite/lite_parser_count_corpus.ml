@@ -40,18 +40,20 @@ let stats () =
 
 let measure stats f =
   let gc_before = Gc.quick_stat () in
+  let allocated_before = Gc.allocated_bytes () in
   let cpu_before = Unix.times () in
   let wall_before = Unix.gettimeofday () in
   let result = f () in
   let wall_after = Unix.gettimeofday () in
   let cpu_after = Unix.times () in
   let gc_after = Gc.quick_stat () in
+  let allocated_after = Gc.allocated_bytes () in
   stats.wall <- stats.wall +. wall_after -. wall_before;
   stats.user <- stats.user +. cpu_after.tms_utime -. cpu_before.tms_utime;
   stats.system <- stats.system +. cpu_after.tms_stime -. cpu_before.tms_stime;
   stats.words <-
-    stats.words +. gc_after.minor_words +. gc_after.major_words
-    -. gc_before.minor_words -. gc_before.major_words;
+    stats.words
+    +. ((allocated_after -. allocated_before) /. (float Sys.word_size /. 8.));
   stats.minor_collections <-
     stats.minor_collections + gc_after.minor_collections
     - gc_before.minor_collections;
