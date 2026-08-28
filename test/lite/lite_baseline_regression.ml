@@ -46,10 +46,9 @@ let terminates =
 
 exception Parser_timeout
 
-let baseline_loops =
+let bounded_agreement =
   "in row misnested svg" >:: fun _ ->
   let html = "<table><tr><math></tr><td><tr><b><svg>d" in
-  ignore (lite `Document html);
   let previous_handler =
     Sys.signal Sys.sigalrm
       (Sys.Signal_handle (fun _ -> raise_notrace Parser_timeout))
@@ -63,15 +62,13 @@ let baseline_loops =
         ignore (Unix.setitimer Unix.ITIMER_REAL previous_timer);
         Sys.set_signal Sys.sigalrm previous_handler)
       (fun () ->
-        try
-          ignore (baseline `Document html);
-          `Terminated
+        try `Parsed (baseline `Document html)
         with Parser_timeout -> `Timed_out)
   in
-  assert_equal
-    ~printer:(function
-      | `Terminated -> "terminated" | `Timed_out -> "timed out")
-    `Timed_out outcome
+  match outcome with
+  | `Timed_out -> assert_failure "baseline parser timed out"
+  | `Parsed expected ->
+      assert_equal ~printer:print_signals expected (lite `Document html)
 
 let () =
   run_test_tt_main
@@ -251,5 +248,5 @@ let () =
                   agrees ~context:(`Fragment "svg") "complete candidate"
                     "<p></p><style></x>";
                 ];
-           "termination" >::: [ terminates; baseline_loops ];
+           "termination" >::: [ terminates; bounded_agreement ];
          ])
