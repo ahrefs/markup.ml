@@ -2380,6 +2380,7 @@ let parse ?depth_limit requested_context report tokens =
               close_cell l (fun () ->
                   Active.clear_until_marker active_formatting_elements;
                   push tokens v;
+                  current_mode := in_row_mode;
                   in_row_mode ())
         | ( l,
             End
@@ -2398,6 +2399,7 @@ let parse ?depth_limit requested_context report tokens =
               close_cell l (fun () ->
                   Active.clear_until_marker active_formatting_elements;
                   push tokens v;
+                  current_mode := in_row_mode;
                   in_row_mode ())
         | l, Start ({ name = "select" } as t) ->
             select_in_body l t in_select_in_table_mode
@@ -2682,6 +2684,13 @@ let parse ?depth_limit requested_context report tokens =
           (fun () ->
             add_character l u_rep;
             mode ())
+    | l, String s when s <> "" && Subtree.buffering subtree_buffer ->
+        let decoded = String.get_utf_8_uchar s 0 in
+        let width = Uchar.utf_decode_length decoded in
+        if width < String.length s then
+          push tokens (l, String (String.sub s width (String.length s - width)));
+        foreign_content mode force_html
+          (l, Char (Uchar.to_int (Uchar.utf_decode_uchar decoded)))
     | l, String s ->
         add_string l (replace_nulls s);
         if not @@ is_whitespace_only (remove_nulls s) then frameset_ok := false;
