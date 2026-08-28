@@ -43,27 +43,56 @@ let html_files directory =
 
 type stats = {
   mutable wall_seconds : float;
+  mutable user_seconds : float;
+  mutable system_seconds : float;
   mutable minor_words : float;
   mutable major_words : float;
   mutable promoted_words : float;
+  mutable minor_collections : int;
+  mutable major_collections : int;
+  mutable compactions : int;
 }
 
 let empty_stats () =
-  { wall_seconds = 0.; minor_words = 0.; major_words = 0.; promoted_words = 0. }
+  {
+    wall_seconds = 0.;
+    user_seconds = 0.;
+    system_seconds = 0.;
+    minor_words = 0.;
+    major_words = 0.;
+    promoted_words = 0.;
+    minor_collections = 0;
+    major_collections = 0;
+    compactions = 0;
+  }
 
 let measure stats f =
   let gc_before = Gc.quick_stat () in
+  let cpu_before = Unix.times () in
   let wall_before = Unix.gettimeofday () in
   let result = f () in
   let wall_after = Unix.gettimeofday () in
+  let cpu_after = Unix.times () in
   let gc_after = Gc.quick_stat () in
   stats.wall_seconds <- stats.wall_seconds +. wall_after -. wall_before;
+  stats.user_seconds <-
+    stats.user_seconds +. cpu_after.tms_utime -. cpu_before.tms_utime;
+  stats.system_seconds <-
+    stats.system_seconds +. cpu_after.tms_stime -. cpu_before.tms_stime;
   stats.minor_words <-
     stats.minor_words +. gc_after.minor_words -. gc_before.minor_words;
   stats.major_words <-
     stats.major_words +. gc_after.major_words -. gc_before.major_words;
   stats.promoted_words <-
     stats.promoted_words +. gc_after.promoted_words -. gc_before.promoted_words;
+  stats.minor_collections <-
+    stats.minor_collections + gc_after.minor_collections
+    - gc_before.minor_collections;
+  stats.major_collections <-
+    stats.major_collections + gc_after.major_collections
+    - gc_before.major_collections;
+  stats.compactions <-
+    stats.compactions + gc_after.compactions - gc_before.compactions;
   result
 
 type outcome = Count of int | Raised of string
@@ -76,10 +105,12 @@ let count iter stream =
 let run f = try Count (f ()) with exn -> Raised (Printexc.to_string exn)
 
 let count_oracle html =
-  run (fun () -> Oracle.parse (fun _ _ -> ()) html |> count Markup.iter)
+  run (fun () ->
+      Oracle.parse ~context:`Document (fun _ _ -> ()) html |> count Markup.iter)
 
 let count_lite html =
-  run (fun () -> Markup_lite.parse_html html |> count Markup_lite.iter)
+  run (fun () ->
+      Markup_lite.parse_html ~context:`Document html |> count Markup_lite.iter)
 
 let compare path oracle lite =
   match (oracle, lite) with
@@ -102,11 +133,17 @@ let compare path oracle lite =
         count exception_;
       None
 
-let print_stats name stats =
+let print_stats name bytes stats =
+  let mib = float bytes /. 1048576. in
   Printf.printf
-    "%s: wall_seconds=%.6f minor_words=%.0f major_words=%.0f promoted_words=%.0f\n"
-    name stats.wall_seconds stats.minor_words stats.major_words
-    stats.promoted_words
+    "%s: wall_seconds=%.6f user_seconds=%.6f system_seconds=%.6f \
+     throughput_mib_s=%.2f minor_words=%.0f major_words=%.0f \
+     promoted_words=%.0f minor_collections=%d major_collections=%d \
+     compactions=%d\n"
+    name stats.wall_seconds stats.user_seconds stats.system_seconds
+    (mib /. stats.wall_seconds)
+    stats.minor_words stats.major_words stats.promoted_words
+    stats.minor_collections stats.major_collections stats.compactions
 
 let run_one name count_parser files =
   let stats = empty_stats () in
@@ -127,7 +164,7 @@ let run_one name count_parser files =
   Printf.eprintf "checked %d/%d\n%!" (List.length files) (List.length files);
   Printf.printf "files=%d bytes=%d signals=%d exceptions=%d\n"
     (List.length files) !bytes !signals !exceptions;
-  print_stats (name ^ " count") stats;
+  print_stats (name ^ " count") !bytes stats;
   Printf.printf "OK: %d HTML files consumed with %s\n%!" (List.length files)
     name
 
@@ -163,8 +200,8 @@ let run_both files =
   Printf.eprintf "checked %d/%d\n%!" (List.length files) (List.length files);
   Printf.printf "files=%d bytes=%d signals=%d\n" (List.length files) !bytes
     !signals;
-  print_stats "oracle count" oracle_stats;
-  print_stats "lite count" lite_stats;
+  print_stats "oracle count" !bytes oracle_stats;
+  print_stats "lite count" !bytes lite_stats;
   if !failures <> 0 then begin
     Printf.eprintf "FAILED: %d files differed\n" !failures;
     exit 1
