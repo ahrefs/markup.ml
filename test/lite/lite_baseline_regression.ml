@@ -95,6 +95,17 @@ let () =
                   agrees "byte in text" "<p>a\xffb</p>";
                   agrees "continuation bytes" "\xb5\x95";
                 ];
+           "declared encoding"
+           >::: [
+                  agrees "windows-1251"
+                    "<meta charset=windows-1251><p>\xCF\xF0\xE8\xE2\xE5\xF2";
+                  agrees "baseline windows-1251 D0 mapping"
+                    "<meta charset=windows-1251><p>\xD0";
+                  agrees "HTML iso-8859-1 is windows-1252"
+                    "<meta charset=iso-8859-1><p>caf\xE9";
+                  agrees "UTF-8 BOM takes precedence"
+                    "\xEF\xBB\xBF<meta charset=windows-1251><p>caf\xC3\xA9";
+                ];
            "crlf"
            >::: [
                   agrees "crlf in text" "<p>a\r\nb</p>"; agrees "lone cr" "a\rb";

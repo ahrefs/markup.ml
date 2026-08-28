@@ -61,6 +61,7 @@ let strip_leading_bom html =
   if start = 0 then html else String.sub html start (length - start)
 
 let create html =
+  let html = Encoding.decode_html html in
   let html = if valid_utf_8 html then html else replace_malformed html in
   let html = strip_leading_bom html in
   let html = normalize_newlines html in
