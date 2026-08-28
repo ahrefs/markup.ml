@@ -2,11 +2,16 @@
  (name lite_test_oracle)
  (wrapped false)
  (modules oracle)
- (libraries devkit markup))
+ (libraries devkit markup markup.lite))
 
 (executable
  (name lite_diff_corpus)
  (modules lite_diff_corpus)
+ (libraries containers lite_test_oracle markup markup.lite unix))
+
+(executable
+ (name lite_parser_diff_corpus)
+ (modules lite_parser_diff_corpus)
  (libraries containers lite_test_oracle markup markup.lite unix))
 
 (executable
