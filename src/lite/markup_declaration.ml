@@ -163,7 +163,7 @@ let doctype data start =
     in
     {
       token =
-        `Doctype
+        Html_tokenizer.Doctype
           {
             doctype_name = contents name;
             public_identifier = contents public_identifier;

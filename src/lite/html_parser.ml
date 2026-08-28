@@ -7,7 +7,7 @@ open Html_tokenizer
 open Kstream
 
 (* Namespaces for pattern matching. *)
-type ns = HTML | MathML | SVG | Other of string
+type ns = HTML | MathML | SVG | Other of string [@@warning "-37"]
 type qname = ns * string
 
 module Ns : sig
@@ -121,7 +121,7 @@ module Context : sig
   val element : t -> element option
   val token : t -> string option
 end = struct
-  let detect tokens throw k =
+  let[@warning "-32"] detect tokens throw k =
     let tokens, restore = checkpoint tokens in
 
     let last_name = ref None in

@@ -69,6 +69,16 @@ let create html =
     foreign = (fun () -> false);
   }
 
+let of_tokens tokens =
+  let pushed =
+    List.map (fun ((line, column), token) -> { token; line; column }) tokens
+  in
+  {
+    scanner = Ragel_html_tokenizer.create "";
+    pushed;
+    foreign = (fun () -> false);
+  }
+
 let location () = { line = 1; column = -1 }
 
 let next source state ~drop_candidate (out : location_out) =

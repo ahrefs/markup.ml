@@ -23,24 +23,56 @@ type doctype = Markup_common.doctype = {
 
 type signal = Markup_common.signal
 
+module Token_tag = Common.Token_tag
+
+type token =
+  [ `Doctype of doctype
+  | `Start of Token_tag.t
+  | `End of Token_tag.t
+  | `Char of int
+  | `String of string
+  | `Comment of string
+  | `EOF ]
+
 module Error = Markup_common.Error
 module Ns = Markup_common.Ns
 
 let signal_to_string = Markup_common.signal_to_string
 
-let parse_html ?(report = fun _ _ -> ())
-    ?(context : [ `Document | `Fragment of string ] = `Document) ?depth_limit
-    html =
-  let report location error throw resume =
-    match report location error with
-    | () -> resume ()
-    | exception exn -> throw exn
-  in
-  let tokens = Token_source.create html in
-  Html_parser.parse ?depth_limit context report tokens
+let wrap_report report location error throw resume =
+  match report location error with
+  | () -> resume ()
+  | exception exn -> throw exn
+
+let parse_source report context depth_limit tokens =
+  Html_parser.parse ?depth_limit context (wrap_report report) tokens
   |> Kstream.map (fun (_, signal) _ continue -> continue signal)
   |> Markup_common.Stream.Private.to_stream
   |> fun stream -> (stream : (signal, sync) stream)
+
+let parse_html ?(report = fun _ _ -> ())
+    ?(context : [ `Document | `Fragment of string ] = `Document) ?depth_limit
+    html =
+  Token_source.create html |> parse_source report context depth_limit
+
+let parse_tokens ?(report = fun _ _ -> ())
+    ?(context : [ `Document | `Fragment of string ] = `Document) ?depth_limit
+    tokens =
+  let adapt (location, token) =
+    let token =
+      match token with
+      | `Doctype d -> Html_tokenizer.Doctype d
+      | `Start t -> Html_tokenizer.Start t
+      | `End t -> Html_tokenizer.End t
+      | `Char c -> Html_tokenizer.Char c
+      | `String s -> Html_tokenizer.String s
+      | `Comment s -> Html_tokenizer.Comment s
+      | `EOF -> Html_tokenizer.EOF
+    in
+    (location, token)
+  in
+  tokens |> List.map adapt |> Token_source.of_tokens
+  |> parse_source report context depth_limit
 
 let iter f stream =
   stream |> Markup_common.Stream.Private.of_stream
