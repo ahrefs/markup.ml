@@ -6,3 +6,7 @@
 (executable
  (name lite_diff_fuzz)
  (libraries lite_test_oracle markup markup.common markup.lite unix))
+
+(executable
+ (name lite_native_fuzz)
+ (libraries markup.lite unix))

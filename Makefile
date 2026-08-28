@@ -41,8 +41,19 @@ test-lite :
 	$(LITE_PARSER_TEST_EXE) $(LITE_TEST_CORPUS)
 	$(LITE_WRITER_TEST_EXE) $(LITE_TEST_CORPUS)
 
+LITE_AFL_MODE ?= diff
+ifeq ($(LITE_AFL_MODE),diff)
+LITE_AFL_TARGET := test/fuzz/lite_diff_fuzz.exe
 LITE_AFL_EXE := _build-afl/default/test/fuzz/lite_diff_fuzz.exe
-LITE_AFL_OUTPUT ?= _fuzz/lite
+LITE_AFL_DEFAULT_OUTPUT := _fuzz/lite
+else ifeq ($(LITE_AFL_MODE),native)
+LITE_AFL_TARGET := test/fuzz/lite_native_fuzz.exe
+LITE_AFL_EXE := _build-afl/default/test/fuzz/lite_native_fuzz.exe
+LITE_AFL_DEFAULT_OUTPUT := _fuzz/lite-native
+else
+$(error LITE_AFL_MODE must be diff or native)
+endif
+LITE_AFL_OUTPUT ?= $(LITE_AFL_DEFAULT_OUTPUT)
 AFL_FUZZ ?= $(if $(wildcard _tools/AFLplusplus/afl-fuzz),_tools/AFLplusplus/afl-fuzz,afl-fuzz)
 AFL_WHATSUP ?= $(if $(wildcard _tools/AFLplusplus/afl-whatsup),_tools/AFLplusplus/afl-whatsup,afl-whatsup)
 J ?= 4
@@ -51,9 +62,9 @@ J ?= 4
 test-lite-afl :
 	@command -v $(AFL_FUZZ) >/dev/null || { \
 	  echo "$(AFL_FUZZ) not found; install AFL or set AFL_FUZZ" >&2; exit 1; }
-	dune build --build-dir _build-afl --profile afl \
-	  test/fuzz/lite_diff_fuzz.exe
+	dune build --build-dir _build-afl --profile afl $(LITE_AFL_TARGET)
 	@set -eu; \
+	echo "fuzzing mode: $(LITE_AFL_MODE)"; \
 	case "$(J)" in ''|*[!0-9]*|0) echo "J must be a positive integer" >&2; exit 2;; esac; \
 	mkdir -p $(LITE_AFL_OUTPUT); \
 	pids=''; \
@@ -79,6 +90,10 @@ test-lite-afl :
 	  i=$$((i + 1)); \
 	done; \
 	wait
+
+.PHONY : test-lite-afl-native
+test-lite-afl-native :
+	$(MAKE) test-lite-afl LITE_AFL_MODE=native
 
 .PHONY : test-lite-afl-report
 test-lite-afl-report :
