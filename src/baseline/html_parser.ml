@@ -728,6 +728,7 @@ sig
   type t
 
   val create : Stack.t -> t
+  val buffering : t -> bool
 
   val accumulate : t -> location -> signal -> bool
 
@@ -747,6 +748,8 @@ struct
     {open_elements;
      enabled  = false;
      position = Element.dummy}
+
+  let buffering subtree_buffer = subtree_buffer.enabled
 
   let accumulate subtree_buffer l s =
     if not subtree_buffer.enabled then true
@@ -2859,6 +2862,14 @@ let parse ?depth_limit requested_context report (tokens, set_tokenizer_state, se
         (fun () ->
       add_character l u_rep;
       mode ())
+
+    | l, `String s when s <> "" && Subtree.buffering subtree_buffer ->
+      let decoded = String.get_utf_8_uchar s 0 in
+      let width = Uchar.utf_decode_length decoded in
+      if width < String.length s then
+        push tokens (l, `String (String.sub s width (String.length s - width)));
+      foreign_content mode force_html
+        (l, `Char (Uchar.to_int (Uchar.utf_decode_uchar decoded)))
 
     | l, `String s ->
       add_string l s;
