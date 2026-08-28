@@ -107,11 +107,12 @@ let compare_lists what to_string expected actual =
 let compare_signals = compare_lists "signal" signal
 let compare_errors = compare_lists "error" error
 
-let check input =
-  let context, body = context_of_input input in
-  (* HtmlStream adaptation is intentionally performed once. *)
-  let tokens = Oracle.adapt body in
-  match (oracle context tokens, lite context tokens) with
+let known_oracle_invariant_failure = function
+  | Raised ("Failure(\"require_current_element: None\")", _) -> true
+  | _ -> false
+
+let compare_outcomes expected actual =
+  match (expected, actual) with
   | Signals (expected, expected_errors), Signals (actual, actual_errors) ->
       compare_signals expected actual;
       compare_errors expected_errors actual_errors
@@ -123,5 +124,13 @@ let check input =
       crash "oracle raised but Lite returned signals: %S" exception_
   | Signals _, Raised (exception_, _) ->
       crash "Lite raised but oracle returned signals: %S" exception_
+
+let check input =
+  let context, body = context_of_input input in
+  (* HtmlStream adaptation is intentionally performed once. *)
+  let tokens = Oracle.adapt body in
+  let expected = oracle context tokens in
+  if known_oracle_invariant_failure expected then ()
+  else compare_outcomes expected (lite context tokens)
 
 let () = match read_input stdin with Some input -> check input | None -> ()
