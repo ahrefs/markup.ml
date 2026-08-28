@@ -48,23 +48,22 @@ type outcome =
   | Signals of Markup_common.signal list * errors
   | Raised of string * errors
 
-let run parse collect_signals context input =
+let run parse collect_signals =
   let errors = ref [] in
   let report location error = errors := (location, error) :: !errors in
-  try Signals (collect_signals (parse report context input), List.rev !errors)
+  try Signals (collect_signals (parse report), List.rev !errors)
   with exn -> Raised (Printexc.to_string exn, List.rev !errors)
 
-let oracle context input =
+let oracle context tokens =
   run
-    (fun report context input ->
-      Oracle.parse ~depth_limit ~context report input)
-    (collect Markup.iter) context input
+    (fun report -> Oracle.parse_adapted ~depth_limit ~context report tokens)
+    (collect Markup.iter)
 
-let lite context input =
+let lite context tokens =
   run
-    (fun report context input ->
-      Markup_lite.parse_html ~report ~context ~depth_limit input)
-    (collect Markup_lite.iter) context input
+    (fun report ->
+      Oracle.parse_lite_adapted ~depth_limit ~context report tokens)
+    (collect Markup_lite.iter)
 
 let truncate string =
   let maximum = 240 in
@@ -110,7 +109,9 @@ let compare_errors = compare_lists "error" error
 
 let check input =
   let context, body = context_of_input input in
-  match (oracle context body, lite context body) with
+  (* HtmlStream adaptation is intentionally performed once. *)
+  let tokens = Oracle.adapt body in
+  match (oracle context tokens, lite context tokens) with
   | Signals (expected, expected_errors), Signals (actual, actual_errors) ->
       compare_signals expected actual;
       compare_errors expected_errors actual_errors
@@ -123,5 +124,4 @@ let check input =
   | Signals _, Raised (exception_, _) ->
       crash "Lite raised but oracle returned signals: %S" exception_
 
-let () =
-  match read_input stdin with Some input -> check input | None -> ()
+let () = match read_input stdin with Some input -> check input | None -> ()
