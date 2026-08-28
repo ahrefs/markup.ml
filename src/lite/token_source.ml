@@ -83,7 +83,6 @@ let of_tokens tokens =
   }
 
 let native_text_runs source = source.native_text_runs
-
 let location () = { line = 1; column = -1 }
 
 let next source state ~drop_candidate (out : location_out) =

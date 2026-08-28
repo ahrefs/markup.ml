@@ -51,7 +51,11 @@ let bogus_comment data start =
   let buffer = Buffer.create 32 in
   let rec consume index =
     if index >= length then
-      { token = Html_tokenizer.Comment (Buffer.contents buffer); next = index; lowercase = 0 }
+      {
+        token = Html_tokenizer.Comment (Buffer.contents buffer);
+        next = index;
+        lowercase = 0;
+      }
     else
       match data.[index] with
       | '>' ->
@@ -70,7 +74,11 @@ let comment data start =
   let length = String.length data in
   let buffer = Buffer.create 64 in
   let finish index =
-    { token = Html_tokenizer.Comment (Buffer.contents buffer); next = index; lowercase = 0 }
+    {
+      token = Html_tokenizer.Comment (Buffer.contents buffer);
+      next = index;
+      lowercase = 0;
+    }
   in
   let rec comment_start index =
     if index >= length then finish index
@@ -360,7 +368,11 @@ let cdata data start =
   let length = String.length data in
   let buffer = Buffer.create 64 in
   let finish next =
-    { token = Html_tokenizer.String (Buffer.contents buffer); next; lowercase = 0 }
+    {
+      token = Html_tokenizer.String (Buffer.contents buffer);
+      next;
+      lowercase = 0;
+    }
   in
   let rec consume index =
     if index >= length then finish index
