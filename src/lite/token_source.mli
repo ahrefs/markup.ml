@@ -7,6 +7,7 @@ type location_out = { mutable line : int; mutable column : int }
 type t
 
 val create : string -> t
+val create_utf_8 : string -> t
 val of_tokens : (location * Html_tokenizer.token) list -> t
 val native_text_runs : t -> bool
 val location : unit -> location_out

@@ -24,6 +24,7 @@ type doctype = Markup_common.doctype = {
 }
 
 type signal = Markup_common.signal
+type encoding = [ `Auto | `UTF_8 ]
 
 module Token_tag : sig
   type t = {
@@ -49,6 +50,7 @@ val signal_to_string : [< signal ] -> string
 
 val parse_html :
   ?report:(location -> Error.t -> unit) ->
+  ?encoding:encoding ->
   ?context:[ `Document | `Fragment of string ] ->
   ?depth_limit:int ->
   string ->

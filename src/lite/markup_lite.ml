@@ -22,6 +22,7 @@ type doctype = Markup_common.doctype = {
 }
 
 type signal = Markup_common.signal
+type encoding = [ `Auto | `UTF_8 ]
 
 module Token_tag = Common.Token_tag
 
@@ -50,10 +51,15 @@ let parse_source report context depth_limit tokens =
   |> Markup_common.Stream.Private.to_stream
   |> fun stream -> (stream : (signal, sync) stream)
 
-let parse_html ?(report = fun _ _ -> ())
+let parse_html ?(report = fun _ _ -> ()) ?(encoding = `Auto)
     ?(context : [ `Document | `Fragment of string ] = `Document) ?depth_limit
     html =
-  Token_source.create html |> parse_source report context depth_limit
+  let source =
+    match encoding with
+    | `Auto -> Token_source.create html
+    | `UTF_8 -> Token_source.create_utf_8 html
+  in
+  parse_source report context depth_limit source
 
 let parse_tokens ?(report = fun _ _ -> ())
     ?(context : [ `Document | `Fragment of string ] = `Document) ?depth_limit

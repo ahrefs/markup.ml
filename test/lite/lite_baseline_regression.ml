@@ -29,6 +29,19 @@ let agrees ?(context = `Document) name html =
   assert_equal ~printer:print_signals (baseline context html)
     (lite context html)
 
+let agrees_utf_8 name html =
+  name >:: fun _ ->
+  let expected =
+    Markup.string html
+    |> Markup.parse_html ~encoding:Markup.Encoding.utf_8 ~context:`Document
+    |> Markup.signals |> Markup.to_list
+  in
+  let actual =
+    Markup_lite.parse_html ~encoding:`UTF_8 ~context:`Document html
+    |> collect Markup_lite.iter
+  in
+  assert_equal ~printer:print_signals expected actual
+
 let agrees_with_text ?(context = `Document) name html text =
   name >:: fun _ ->
   let expected = baseline context html in
@@ -115,6 +128,8 @@ let () =
                 ];
            "declared encoding"
            >::: [
+                  agrees_utf_8 "explicit UTF-8 ignores declaration"
+                    "<meta charset=windows-1252><p>\xC3\xA9";
                   agrees "windows-1251"
                     "<meta charset=windows-1251><p>\xCF\xF0\xE8\xE2\xE5\xF2";
                   agrees "baseline windows-1251 D0 mapping"

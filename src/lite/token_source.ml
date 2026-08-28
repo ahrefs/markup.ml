@@ -60,8 +60,7 @@ let strip_leading_bom html =
   let start = if not (has_bom 0) then 0 else if has_bom 3 then 6 else 3 in
   if start = 0 then html else String.sub html start (length - start)
 
-let create html =
-  let html = Encoding.decode_html html in
+let create_utf_8 html =
   let html = if valid_utf_8 html then html else replace_malformed html in
   let html = strip_leading_bom html in
   let html = normalize_newlines html in
@@ -71,6 +70,8 @@ let create html =
     foreign = (fun () -> false);
     native_text_runs = true;
   }
+
+let create html = Encoding.decode_html html |> create_utf_8
 
 let of_tokens tokens =
   let pushed =
