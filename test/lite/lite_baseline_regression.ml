@@ -44,6 +44,35 @@ let terminates =
   "in row misnested math" >:: fun _ ->
   ignore (lite `Document "<table><tr><math></tr><td><tr><b><math>0")
 
+exception Parser_timeout
+
+let baseline_loops =
+  "in row misnested svg" >:: fun _ ->
+  let html = "<table><tr><math></tr><td><tr><b><svg>d" in
+  ignore (lite `Document html);
+  let previous_handler =
+    Sys.signal Sys.sigalrm
+      (Sys.Signal_handle (fun _ -> raise_notrace Parser_timeout))
+  in
+  let previous_timer =
+    Unix.setitimer Unix.ITIMER_REAL { it_interval = 0.; it_value = 0.25 }
+  in
+  let outcome =
+    Fun.protect
+      ~finally:(fun () ->
+        ignore (Unix.setitimer Unix.ITIMER_REAL previous_timer);
+        Sys.set_signal Sys.sigalrm previous_handler)
+      (fun () ->
+        try
+          ignore (baseline `Document html);
+          `Terminated
+        with Parser_timeout -> `Timed_out)
+  in
+  assert_equal
+    ~printer:(function
+      | `Terminated -> "terminated" | `Timed_out -> "timed out")
+    `Timed_out outcome
+
 let () =
   run_test_tt_main
     ("Lite vs baseline regressions"
@@ -222,5 +251,5 @@ let () =
                   agrees ~context:(`Fragment "svg") "complete candidate"
                     "<p></p><style></x>";
                 ];
-           "termination" >::: [ terminates ];
+           "termination" >::: [ terminates; baseline_loops ];
          ])

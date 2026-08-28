@@ -32,7 +32,7 @@
 (executable
  (name lite_baseline_regression)
  (modules lite_baseline_regression)
- (libraries markup markup.common markup.lite ounit2))
+ (libraries markup markup.common markup.lite ounit2 unix))
 
 (executable
  (name lite_main_entity_regression)
