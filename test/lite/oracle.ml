@@ -72,4 +72,6 @@ let parse_lite_adapted ?depth_limit
 
 let parse ?depth_limit
     ?(context : [ `Document | `Fragment of string ] = `Document) report html =
-  html |> adapt |> parse_adapted ?depth_limit ~context report
+  Markup.string html
+  |> Markup.parse_html ~report ~context ?depth_limit
+  |> Markup.signals
