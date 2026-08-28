@@ -10,10 +10,12 @@ let decode raw =
   let inner = HS.Raw.project raw in
   try Devkit.Web.htmldecode inner with _ -> inner
 
-(* HtmlStream does not expose comments, self-closing syntax, raw-text token
-   boundaries, or columns. The strict parser oracle therefore omits comments,
-   defaults [self_closing] to false, expands Script/Style into three tokens,
-   and uses [(line, -1)] for both parsers. *)
+(* See [htmlstream-adapter.md] for the common adaptation policy and its
+   test-only suitability assessment. HtmlStream does not expose comments,
+   self-closing syntax, raw-text token boundaries, or columns. The strict
+   parser oracle therefore omits comments, defaults [self_closing] to false,
+   expands Script/Style into three tokens, and uses [(line, -1)] for both
+   parsers. *)
 let adapt html : (Markup.location * Markup.Internals.token) list =
   let ctx = HS.init () in
   let tokens = ref [] in
