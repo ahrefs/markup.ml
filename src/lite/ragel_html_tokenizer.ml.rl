@@ -233,6 +233,8 @@ let run scanner foreign =
     done;
     p := next;
     cs := htmlstream_en_main;
+    (* clear so [scan_data_text] has a chance to fire again *)
+    mark := -1;
     if !p >= !eof then scanner.finished <- true
   end
   else if scanner.end_scan >= 0 then begin
@@ -250,6 +252,7 @@ let run scanner foreign =
     done;
     p := next;
     cs := htmlstream_en_main;
+    mark := -1;
     if !p >= !eof then scanner.finished <- true
   end
   else if scanner.bogus >= 0 then begin
@@ -270,6 +273,7 @@ let run scanner foreign =
     done;
     p := result.Markup_declaration.next;
     cs := htmlstream_en_main;
+    mark := -1;
     if !p >= !eof then scanner.finished <- true
   end
   else if scanner.declaration >= 0 then begin
@@ -297,6 +301,7 @@ let run scanner foreign =
     end;
     p := result.Markup_declaration.next;
     cs := htmlstream_en_main;
+    mark := -1;
     if !p >= !eof then scanner.finished <- true
   end
   else if scan_data_text scanner then ()
@@ -351,6 +356,7 @@ let scan_raw_state scanner state drop_candidate =
     done;
     scanner.p := next_index;
     scanner.cs := htmlstream_en_main;
+    scanner.mark := -1;
     if next_index >= !(scanner.eof) then scanner.finished <- true
   end
 
