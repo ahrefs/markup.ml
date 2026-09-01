@@ -174,14 +174,48 @@ let windows_1251 input =
       else 0x0410 + byte - 0xC0)
     input
 
-let decode_html input =
-  if String.length input >= 3 && String.sub input 0 3 = "\xEF\xBB\xBF" then
+let transcode_utf_16 fold input =
+  let output = Buffer.create (String.length input) in
+  fold
+    (fun () _ -> function
+      | `Uchar uchar -> Uutf.Buffer.add_utf_8 output uchar
+      | `Malformed _ -> Uutf.Buffer.add_utf_8 output Uutf.u_rep)
+    () input;
+  Buffer.contents output
+
+let utf_16be input =
+  transcode_utf_16
+    (fun folder state input -> Uutf.String.fold_utf_16be folder state input)
     input
-  else
-    match declared_encoding input with
-    | Some ("windows-1251" | "cp1251" | "x-cp1251") -> windows_1251 input
-    | Some
-        ( "windows-1252" | "cp1252" | "x-cp1252" | "iso-8859-1" | "latin1"
-        | "us-ascii" | "ascii" ) ->
-        windows_1252 input
-    | _ -> input
+
+let utf_16le input =
+  transcode_utf_16
+    (fun folder state input -> Uutf.String.fold_utf_16le folder state input)
+    input
+
+let bom input =
+  let length = String.length input in
+  if length >= 2 && input.[0] = '\xFE' && input.[1] = '\xFF' then Some `UTF_16BE
+  else if length >= 2 && input.[0] = '\xFF' && input.[1] = '\xFE' then
+    Some `UTF_16LE
+  else if
+    length >= 3
+    && input.[0] = '\xEF'
+    && input.[1] = '\xBB'
+    && input.[2] = '\xBF'
+  then Some `UTF_8
+  else None
+
+let decode_html input =
+  match bom input with
+  | Some `UTF_16BE -> utf_16be input
+  | Some `UTF_16LE -> utf_16le input
+  | Some `UTF_8 -> input
+  | None -> (
+      match declared_encoding input with
+      | Some ("windows-1251" | "cp1251" | "x-cp1251") -> windows_1251 input
+      | Some
+          ( "windows-1252" | "cp1252" | "x-cp1252" | "iso-8859-1" | "latin1"
+          | "us-ascii" | "ascii" ) ->
+          windows_1252 input
+      | _ -> input)

@@ -29,18 +29,21 @@ let agrees ?(context = `Document) name html =
   assert_equal ~printer:print_signals (baseline context html)
     (lite context html)
 
-let agrees_utf_8 name html =
+let agrees_encoding name baseline_encoding lite_encoding html =
   name >:: fun _ ->
   let expected =
     Markup.string html
-    |> Markup.parse_html ~encoding:Markup.Encoding.utf_8 ~context:`Document
+    |> Markup.parse_html ~encoding:baseline_encoding ~context:`Document
     |> Markup.signals |> Markup.to_list
   in
   let actual =
-    Markup_lite.parse_html ~encoding:`UTF_8 ~context:`Document html
+    Markup_lite.parse_html ~encoding:lite_encoding ~context:`Document html
     |> collect Markup_lite.iter
   in
   assert_equal ~printer:print_signals expected actual
+
+let agrees_utf_8 name html =
+  agrees_encoding name Markup.Encoding.utf_8 `UTF_8 html
 
 let agrees_with_text ?(context = `Document) name html text =
   name >:: fun _ ->
@@ -149,6 +152,13 @@ let () =
                   agrees_with_text "internal bom is preserved" "a\xEF\xBB\xBFb"
                     "a\xEF\xBB\xBFb";
                   agrees "two leading boms" "\xEF\xBB\xBF\xEF\xBB\xBFa";
+                  agrees "UTF-16LE bom"
+                    "\xFF\xFE\x3C\x00\x70\x00\x3E\x00\xE9\x00\x3C\x00\x2F\x00\x70\x00\x3E\x00";
+                  agrees "UTF-16BE bom"
+                    "\xFE\xFF\x00\x3C\x00\x70\x00\x3E\x00\xE9\x00\x3C\x00\x2F\x00\x70\x00\x3E";
+                  agrees_encoding "explicit UTF-16LE" Markup.Encoding.utf_16le
+                    `UTF_16LE
+                    "\x3C\x00\x70\x00\x3E\x00\x78\x00\x3C\x00\x2F\x00\x70\x00\x3E\x00";
                 ];
            "table whitespace"
            >::: [

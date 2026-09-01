@@ -22,7 +22,7 @@ type doctype = Markup_common.doctype = {
 }
 
 type signal = Markup_common.signal
-type encoding = [ `Auto | `UTF_8 ]
+type encoding = [ `Auto | `UTF_8 | `UTF_16BE | `UTF_16LE ]
 
 module Token_tag = Common.Token_tag
 
@@ -58,6 +58,8 @@ let parse_html ?(report = fun _ _ -> ()) ?(encoding = `Auto)
     match encoding with
     | `Auto -> Token_source.create html
     | `UTF_8 -> Token_source.create_utf_8 html
+    | `UTF_16BE -> Encoding.utf_16be html |> Token_source.create_utf_8
+    | `UTF_16LE -> Encoding.utf_16le html |> Token_source.create_utf_8
   in
   parse_source report context depth_limit source
 

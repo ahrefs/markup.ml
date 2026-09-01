@@ -24,7 +24,7 @@ type doctype = Markup_common.doctype = {
 }
 
 type signal = Markup_common.signal
-type encoding = [ `Auto | `UTF_8 ]
+type encoding = [ `Auto | `UTF_8 | `UTF_16BE | `UTF_16LE ]
 
 module Token_tag : sig
   type t = {
