@@ -1739,9 +1739,13 @@ let parse ?depth_limit requested_context report tokens =
                 match next_token tokens with
                 | _, Char 0x000A -> mode ()
                 | loc, String s when String.starts_with ~prefix:"\n" s ->
-                    push tokens
-                      (loc, String (String.sub s 1 (String.length s - 1)));
-                    mode ()
+                    if String.length s = 1 then
+                      reconstruct_active_formatting_elements mode
+                    else begin
+                      let rest = String.sub s 1 (String.length s - 1) in
+                      push tokens (loc, String rest);
+                      mode ()
+                    end
                 | v ->
                     push tokens v;
                     mode ()
