@@ -91,3 +91,8 @@ let iter f stream =
 
 let write_html ?escape_attribute ?escape_text buffer signals =
   Html_writer.write ?escape_attribute ?escape_text buffer signals
+
+let to_html_string ?escape_attribute ?escape_text signals =
+  let buffer = Buffer.create 512 in
+  write_html ?escape_attribute ?escape_text buffer signals;
+  Buffer.contents buffer

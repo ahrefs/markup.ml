@@ -71,3 +71,9 @@ val write_html :
   Buffer.t ->
   (signal, sync) stream ->
   unit
+
+val to_html_string :
+  ?escape_attribute:(Buffer.t -> string -> unit) ->
+  ?escape_text:(Buffer.t -> string -> unit) ->
+  (signal, sync) stream ->
+  string
