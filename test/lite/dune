@@ -44,6 +44,11 @@
  (modules lite_fuzz_regression)
  (libraries lite_test_oracle markup markup.common markup.lite ounit2))
 
+(executable
+ (name lite_mismatch_regression)
+ (modules lite_mismatch_regression)
+ (libraries lite_test_oracle markup markup.common markup.lite ounit2))
+
 (rule
  (alias runtest)
  (action
@@ -53,6 +58,11 @@
  (alias runtest)
  (action
   (run %{exe:lite_fuzz_regression.exe})))
+
+(rule
+ (alias runtest)
+ (action
+  (run %{exe:lite_mismatch_regression.exe})))
 
 (rule
  (alias runtest)
