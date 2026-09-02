@@ -139,6 +139,23 @@ let () =
                     "<meta charset=windows-1251><p>\xD0";
                   agrees "HTML iso-8859-1 is windows-1252"
                     "<meta charset=iso-8859-1><p>caf\xE9";
+                  agrees "bare charset text is ignored"
+                    "<p>charset=windows-1252 \xC3\xA9";
+                  agrees "charset in a comment is ignored"
+                    "<!-- <meta charset=windows-1252> --><p>\xC3\xA9";
+                  agrees "charset in a quoted attribute is ignored"
+                    "<p title='<meta charset=windows-1252>'>\xC3\xA9";
+                  agrees "content pragma"
+                    "<meta http-equiv=content-type content='text/html; \
+                     charset=windows-1252'><p>\xE9";
+                  agrees "pragma after content"
+                    "<meta content='text/html; charset=windows-1252' \
+                     http-equiv=content-type><p>\xE9";
+                  agrees "content without pragma is ignored"
+                    "<meta content='text/html; \
+                     charset=windows-1252'><p>\xC3\xA9";
+                  agrees "duplicate charset attribute keeps the first"
+                    "<meta charset=windows-1251 charset=windows-1252><p>\xCF";
                   agrees "UTF-8 BOM takes precedence"
                     "\xEF\xBB\xBF<meta charset=windows-1251><p>caf\xC3\xA9";
                 ];
