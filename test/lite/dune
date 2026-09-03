@@ -1,0 +1,75 @@
+(library
+ (name lite_test_oracle)
+ (wrapped false)
+ (modules oracle)
+ (libraries devkit markup markup.lite))
+
+(executable
+ (name lite_diff_corpus)
+ (modules lite_diff_corpus)
+ (libraries containers lite_test_oracle markup markup.lite unix))
+
+(executable
+ (name lite_parser_diff_corpus)
+ (modules lite_parser_diff_corpus)
+ (libraries containers lite_test_oracle markup markup.lite unix))
+
+(executable
+ (name lite_parser_count_corpus)
+ (modules lite_parser_count_corpus)
+ (libraries containers lite_test_oracle markup markup.lite unix))
+
+(executable
+ (name lite_count_corpus)
+ (modules lite_count_corpus)
+ (libraries containers lite_test_oracle markup markup.lite unix))
+
+(executable
+ (name lite_writer_diff_corpus)
+ (modules lite_writer_diff_corpus)
+ (libraries containers markup markup.lite unix))
+
+(executable
+ (name lite_baseline_regression)
+ (modules lite_baseline_regression)
+ (libraries markup markup.common markup.lite ounit2 unix))
+
+(executable
+ (name lite_main_entity_regression)
+ (modules lite_main_entity_regression)
+ (libraries markup markup.lite))
+
+(executable
+ (name lite_fuzz_regression)
+ (modules lite_fuzz_regression)
+ (libraries lite_test_oracle markup markup.common markup.lite ounit2))
+
+(executable
+ (name lite_mismatch_regression)
+ (modules lite_mismatch_regression)
+ (libraries lite_test_oracle markup markup.common markup.lite ounit2))
+
+(rule
+ (alias runtest)
+ (action
+  (run %{exe:lite_main_entity_regression.exe})))
+
+(rule
+ (alias runtest)
+ (action
+  (run %{exe:lite_fuzz_regression.exe})))
+
+(rule
+ (alias runtest)
+ (action
+  (run %{exe:lite_mismatch_regression.exe})))
+
+(rule
+ (alias runtest)
+ (action
+  (run %{exe:lite_baseline_regression.exe})))
+
+(executable
+ (name lite_dump_signals)
+ (modules lite_dump_signals)
+ (libraries lite_test_oracle markup markup.common markup.lite))

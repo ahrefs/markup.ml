@@ -21,8 +21,7 @@ let suite =
            Test_detect.tests;
            Test_utility.tests;
            Test_integration.tests;
-           (* Test_ragel_tokenizer.tests; *)
-           (* Test_ragel_parser.tests; *)
+           Test_ragel_tokenizer.tests;
          ]
 
 let () =

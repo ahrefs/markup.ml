@@ -13,11 +13,13 @@ dev-repo: "git+https://github.com/aantron/markup.ml.git"
 
 depends: [
   "dune" {>= "2.7.0"}
-  "ocaml" {>= "4.03.0"}
+  "ocaml" {>= "4.14.0"}
   "uchar"
   "uutf" {>= "1.0.0"}
 
   "bisect_ppx" {dev & >= "2.5.0"}
+  "containers" {with-test}
+  "devkit" {with-test}
   "ounit2" {dev}
 ]
 # Markup.ml implicitly requires OCaml 4.02.3, as this is a contraint of Dune.

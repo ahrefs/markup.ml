@@ -2,22 +2,108 @@
 build :
 	dune build -p markup,markup-lwt
 
+.PHONY : format
+format :
+	dune build @src/lite/fmt @test/lite/fmt --auto-promote || dune build @src/lite/fmt
+
 # This is not part of the ordinary build process. The output file, entities.ml,
 # is checked into git.
 .PHONY : entities
 entities :
-	dune exec src/translate_entities/translate_entities.exe \
-	  > src/entities.ml
+	dune exec src/entities/translate_entities/translate_entities.exe \
+	  > src/entities/entities.ml
+
+.PHONY : lite-ragel
+lite-ragel :
+	cd src/lite && ragel-ocaml -L -F1 \
+	  -o ragel_html_tokenizer.ml ragel_html_tokenizer.ml.rl
+	python3 -c 'from pathlib import Path; p = Path("src/lite/ragel_html_tokenizer.ml"); p.write_text("\n".join(line.rstrip() for line in p.read_text().splitlines()) + "\n")'
+	rm -f src/lite/ragel_html_tokenizer.ri
 
 .PHONY : test
 test :
 	dune runtest
 
+LITE_TEST_EXE := _build/default/test/lite/lite_diff_corpus.exe
+LITE_COUNT_TEST_EXE := _build/default/test/lite/lite_count_corpus.exe
+LITE_PARSER_TEST_EXE := _build/default/test/lite/lite_parser_diff_corpus.exe
+LITE_WRITER_TEST_EXE := _build/default/test/lite/lite_writer_diff_corpus.exe
+LITE_TEST_CORPUS ?= big_tests
+
+.PHONY : test-lite
+test-lite :
+	dune build --profile release test/lite/lite_diff_corpus.exe \
+	  test/lite/lite_count_corpus.exe \
+	  test/lite/lite_parser_diff_corpus.exe \
+	  test/lite/lite_writer_diff_corpus.exe
+	$(LITE_TEST_EXE) $(LITE_TEST_CORPUS)
+	$(LITE_COUNT_TEST_EXE) $(LITE_TEST_CORPUS)
+	$(LITE_PARSER_TEST_EXE) $(LITE_TEST_CORPUS)
+	$(LITE_WRITER_TEST_EXE) $(LITE_TEST_CORPUS)
+
+LITE_AFL_MODE ?= diff
+ifeq ($(LITE_AFL_MODE),diff)
+LITE_AFL_TARGET := test/fuzz/lite_diff_fuzz.exe
+LITE_AFL_EXE := _build-afl/default/test/fuzz/lite_diff_fuzz.exe
+LITE_AFL_DEFAULT_OUTPUT := _fuzz/lite
+else ifeq ($(LITE_AFL_MODE),native)
+LITE_AFL_TARGET := test/fuzz/lite_native_fuzz.exe
+LITE_AFL_EXE := _build-afl/default/test/fuzz/lite_native_fuzz.exe
+LITE_AFL_DEFAULT_OUTPUT := _fuzz/lite-native
+else
+$(error LITE_AFL_MODE must be diff or native)
+endif
+LITE_AFL_OUTPUT ?= $(LITE_AFL_DEFAULT_OUTPUT)
+AFL_FUZZ ?= $(if $(wildcard _tools/AFLplusplus/afl-fuzz),_tools/AFLplusplus/afl-fuzz,afl-fuzz)
+AFL_WHATSUP ?= $(if $(wildcard _tools/AFLplusplus/afl-whatsup),_tools/AFLplusplus/afl-whatsup,afl-whatsup)
+J ?= 4
+
+.PHONY : test-lite-afl
+test-lite-afl :
+	@command -v $(AFL_FUZZ) >/dev/null || { \
+	  echo "$(AFL_FUZZ) not found; install AFL or set AFL_FUZZ" >&2; exit 1; }
+	dune build --build-dir _build-afl --profile afl $(LITE_AFL_TARGET)
+	@set -eu; \
+	echo "fuzzing mode: $(LITE_AFL_MODE)"; \
+	case "$(J)" in ''|*[!0-9]*|0) echo "J must be a positive integer" >&2; exit 2;; esac; \
+	mkdir -p $(LITE_AFL_OUTPUT); \
+	pids=''; \
+	cleanup () { \
+	  trap - EXIT INT TERM; \
+	  if test -n "$$pids"; then kill $$pids 2>/dev/null || true; fi; \
+	  wait 2>/dev/null || true; \
+	}; \
+	trap cleanup EXIT INT TERM; \
+	i=0; \
+	while test $$i -lt $(J); do \
+	  id=$$(printf 'fuzzer%02d' $$i); \
+	  if test $$i -eq 0; then role=-M; else role=-S; fi; \
+	  input=test/fuzz/seeds; \
+	  if test -d $(LITE_AFL_OUTPUT)/$$id/queue; then input=-; fi; \
+	  echo "starting AFL worker $$id"; \
+	  AFL_NO_UI=1 AFL_NO_AFFINITY=1 AFL_SKIP_CPUFREQ=1 \
+	    AFL_I_DONT_CARE_ABOUT_MISSING_CRASHES=1 \
+	    $(AFL_FUZZ) -i $$input -o $(LITE_AFL_OUTPUT) \
+	      -x test/fuzz/html.dict $$role $$id -- $(LITE_AFL_EXE) \
+	      >$(LITE_AFL_OUTPUT)/$$id.log 2>&1 & \
+	  pids="$$pids $$!"; \
+	  i=$$((i + 1)); \
+	done; \
+	wait
+
+.PHONY : test-lite-afl-native
+test-lite-afl-native :
+	$(MAKE) test-lite-afl LITE_AFL_MODE=native
+
+.PHONY : test-lite-afl-report
+test-lite-afl-report :
+	$(AFL_WHATSUP) -d $(LITE_AFL_OUTPUT)
+
 .PHONY : coverage
 coverage :
 	find . -name '*.coverage' | xargs rm -f
 	dune runtest --instrument-with bisect_ppx --force
-	bisect-ppx-report html --expect src/ --do-not-expect src/translate_entities/
+	bisect-ppx-report html --expect src/ --do-not-expect src/entities/translate_entities/
 	bisect-ppx-report summary
 	@echo See _coverage/index.html
 

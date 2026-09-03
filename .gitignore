@@ -1,6 +1,9 @@
 scratch/
 _opam/
 _build/
+_build-*/
+_fuzz/
+_tools/
 bisect*.out
 _coverage
 *.install
