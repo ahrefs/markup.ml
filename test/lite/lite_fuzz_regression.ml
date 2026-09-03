@@ -36,6 +36,39 @@ let adapted_agrees name html =
   name >:: fun _ ->
   assert_equal ~printer:print_signals (adapted_oracle html) (adapted_lite html)
 
+(* [adapted_agrees] compares signals only. These two also need the error
+   stream: the 2026-09-03 divergences below were error-only or error-visible. *)
+let adapted_outcome parse html =
+  let tokens = Oracle.adapt html in
+  let errors = ref [] in
+  let report location error = errors := (location, error) :: !errors in
+  let signals = parse report tokens in
+  ( List.map Markup_common.signal_to_string signals,
+    List.rev_map
+      (fun ((line, column), error) ->
+        Printf.sprintf "(%d,%d) %s" line column
+          (Markup_common.Error.to_string error))
+      !errors )
+
+let adapted_oracle_outcome =
+  adapted_outcome (fun report tokens ->
+      collect Markup.iter
+        (Oracle.parse_adapted ~context:`Document report tokens))
+
+let adapted_lite_outcome =
+  adapted_outcome (fun report tokens ->
+      collect Markup_lite.iter
+        (Oracle.parse_lite_adapted ~context:`Document report tokens))
+
+let print_outcome (signals, errors) =
+  Printf.sprintf "\n  %s" (String.concat "\n  " (signals @ errors))
+
+let adapted_agrees_with_errors name html =
+  name >:: fun _ ->
+  assert_equal ~printer:print_outcome
+    (adapted_oracle_outcome html)
+    (adapted_lite_outcome html)
+
 let lite_parses name html = name >:: fun _ -> ignore (lite html)
 
 let rawtext_failures =
@@ -133,6 +166,24 @@ let doctype_lookahead_guards =
   ]
   |> List.map (fun (name, html) -> agrees name html)
 
+let pre_newline_pushback =
+  [
+    (* [<a;>] produces no token of its own; it only splits the character run
+       into [String "a\n"; String "\n"]. Lite used to consume the second token
+       inside the [pre] handler and drop it, keeping one newline the oracle
+       dropped. Needs pre/listing + an open formatting element + foreign
+       content: the formatting element keeps the subtree buffer on, so
+       [current_mode] stays pinned to the [pre] continuation and every character
+       of foreign text re-enters it. *)
+    adapted_agrees_with_errors
+      "split foreign text run under pre and a formatting element"
+      "<pre><a><svg>a\n<a;>\n";
+    (* Error-stream only. The empty remainder has to be re-dispatched so that
+       "in table" reports a second [bad content in 'table']. *)
+    adapted_agrees_with_errors
+      "pre as a direct table child with a leading newline" "<table><pre>\n";
+  ]
+
 let () =
   run_test_tt_main
     ("Lite fuzz regressions"
@@ -146,4 +197,5 @@ let () =
            "doctype lookahead guards" >::: doctype_lookahead_guards;
            "end-tag candidate recovery" >::: candidate_recovery_failures;
            "end-tag candidate guards" >::: candidate_recovery_guards;
+           "pre newline push-back" >::: pre_newline_pushback;
          ])
