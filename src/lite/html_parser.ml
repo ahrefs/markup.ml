@@ -1585,12 +1585,12 @@ let parse ?depth_limit requested_context report tokens =
   and in_body_mode_rules context_name mode = function
     | l, Char 0 -> report l (`Bad_token ("U+0000", "body", "null")) !throw mode
     | l, String s ->
-        let s = remove_nulls s in
-        if s = "" then mode ()
+        let text = remove_nulls s in
+        if text = "" && s <> "" then mode ()
         else
           reconstruct_active_formatting_elements (fun () ->
-              add_string l s;
-              if not @@ is_whitespace_only s then frameset_ok := false;
+              add_string l text;
+              if not @@ is_whitespace_only text then frameset_ok := false;
               mode ())
     | l, Char ((0x0009 | 0x000A | 0x000C | 0x000D | 0x0020) as c) ->
         reconstruct_active_formatting_elements (fun () ->
@@ -1739,13 +1739,9 @@ let parse ?depth_limit requested_context report tokens =
                 match next_token tokens with
                 | _, Char 0x000A -> mode ()
                 | loc, String s when String.starts_with ~prefix:"\n" s ->
-                    if String.length s = 1 then
-                      reconstruct_active_formatting_elements mode
-                    else begin
-                      let rest = String.sub s 1 (String.length s - 1) in
-                      push tokens (loc, String rest);
-                      mode ()
-                    end
+                    push tokens
+                      (loc, String (String.sub s 1 (String.length s - 1)));
+                    mode ()
                 | v ->
                     push tokens v;
                     mode ()
